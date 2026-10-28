@@ -1,0 +1,23 @@
+*.iml
+.gradle
+/local.properties
+/.idea/
+.DS_Store
+/build
+build/
+app/build/
+.cxx/
+local.properties
+*.hprof
+*.apk
+*.aab
+
+# Local reverse-engineering / diagnostics artifacts
+.atttmp/
+.worktrees/
+build-verify.out.log
+device-screen.png
+window.xml
+__pycache__/
+*.pyc
+

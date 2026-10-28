@@ -1,0 +1,10 @@
+# GitHub Funding Configuration
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+
+patreon: TeslaDroidApp
+custom:
+  - 'https://www.patreon.com/cw/TeslaDroidApp'
+  - 'USDT (TRC-20): TFghs2UzVVTo8xLbe9aws2WBc8YvrNB8kW'
+  - 'Bitcoin: bc1qj92ptfk7vahdm94vh805zgymxx2ggt6zn2rqat'
+  - 'Ethereum: 0xb46e07cded28324b49086eb1aa2c2bea7654354d'
+  - 'Solana: 7Hx5Q3uPN63NYMGCn214HxvnYQVxvafxLSQYEXPqFNuE'

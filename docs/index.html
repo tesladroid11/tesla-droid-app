@@ -1,0 +1,1720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TeslaDroid — Android Display & Multitouch Mirroring for Tesla</title>
+  <meta name="description" content="Standalone, ultra-low-latency Android vehicle integration for Tesla infotainment screens with bi-directional multi-touch, studio audio, and GPS Shield anti-jamming protection.">
+  <link rel="icon" type="image/png" href="assets/logo_minimal_titanium.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090a0f;
+      --bg-card: rgba(18, 22, 33, 0.7);
+      --bg-card-hover: rgba(26, 32, 48, 0.85);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-accent: rgba(0, 240, 255, 0.3);
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --primary: #00f0ff;
+      --primary-glow: rgba(0, 240, 255, 0.25);
+      --accent: #f59e0b;
+      --success: #10b981;
+      --radius: 16px;
+      --font-main: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; background: var(--bg); color: var(--text); font-family: var(--font-main); }
+    body { overflow-x: hidden; min-height: 100vh; line-height: 1.6; }
+
+    /* Glow backdrop */
+    .ambient-glow {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      pointer-events: none; z-index: 0;
+      background: 
+        radial-gradient(circle 800px at 15% 10%, rgba(0, 240, 255, 0.07), transparent 70%),
+        radial-gradient(circle 700px at 85% 60%, rgba(245, 158, 11, 0.05), transparent 70%),
+        radial-gradient(circle 900px at 50% 90%, rgba(99, 102, 241, 0.06), transparent 70%);
+    }
+
+    /* Container */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Navbar */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(20px);
+      background: rgba(9, 10, 15, 0.75);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 0;
+    }
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .brand {
+      display: flex; align-items: center; gap: 12px;
+      text-decoration: none; color: #fff; font-weight: 800; font-size: 1.25rem;
+      letter-spacing: -0.02em;
+    }
+    .brand img {
+      width: 36px; height: 36px; border-radius: 8px;
+      box-shadow: 0 0 20px var(--primary-glow);
+    }
+    .badge-ver {
+      font-size: 0.7rem; font-weight: 600;
+      padding: 2px 8px; border-radius: 999px;
+      background: rgba(0, 240, 255, 0.12);
+      color: var(--primary); border: 1px solid rgba(0, 240, 255, 0.3);
+      font-family: var(--font-mono);
+    }
+    .nav-links {
+      display: flex; align-items: center; gap: 24px;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--text-muted); text-decoration: none;
+      font-size: 0.95rem; font-weight: 500; transition: color 0.2s;
+    }
+    .nav-links a:hover { color: #fff; }
+    .nav-btn {
+      padding: 8px 18px; border-radius: 10px;
+      font-size: 0.9rem; font-weight: 600; text-decoration: none;
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.2), rgba(0, 240, 255, 0.05));
+      color: #fff; border: 1px solid var(--border-accent);
+      transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .nav-btn:hover {
+      box-shadow: 0 0 25px var(--primary-glow);
+      background: var(--primary); color: #000;
+    }
+
+    
+    .nav-actions {
+      display: flex; align-items: center; gap: 14px;
+    }
+    .lang-dropdown {
+      position: relative;
+    }
+    .lang-btn {
+      padding: 7px 14px; border-radius: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: #cbd5e1; font-size: 0.85rem; font-weight: 600;
+      cursor: pointer; display: flex; align-items: center; gap: 8px;
+      transition: all 0.2s ease;
+    }
+    .lang-btn:hover {
+      background: rgba(255, 255, 255, 0.1); color: #fff; border-color: rgba(0, 240, 255, 0.3);
+    }
+    .lang-menu {
+      position: absolute; top: calc(100% + 8px); right: 0;
+      background: #11141d; border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px; padding: 6px;
+      min-width: 170px; max-height: 380px; overflow-y: auto; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(16px);
+      display: none; flex-direction: column; gap: 2px; z-index: 200;
+    }
+    .lang-menu.show {
+      display: flex;
+    }
+    .lang-opt {
+      padding: 8px 12px; border-radius: 8px;
+      background: none; border: none;
+      color: #94a3b8; font-size: 0.85rem; font-weight: 600;
+      text-align: left; cursor: pointer; transition: all 0.15s ease;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .lang-opt:hover {
+      background: rgba(255, 255, 255, 0.06); color: #fff;
+    }
+    .lang-opt.active {
+      background: rgba(0, 240, 255, 0.12); color: #00f0ff;
+    }
+
+    /* Hero */
+    .hero {
+      padding: 100px 0 60px;
+      text-align: center;
+      position: relative;
+    }
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 16px; border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      font-size: 0.85rem; font-weight: 600; color: var(--primary);
+      margin-bottom: 24px;
+    }
+    .pill-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    .hero h1 {
+      font-size: clamp(2.5rem, 6vw, 4.2rem);
+      font-weight: 800; line-height: 1.1;
+      letter-spacing: -0.03em;
+      margin-bottom: 24px;
+    }
+    .hero h1 span.gradient-text {
+      background: linear-gradient(135deg, #ffffff 40%, var(--primary) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero p {
+      max-width: 680px; margin: 0 auto 36px;
+      font-size: clamp(1rem, 2vw, 1.25rem);
+      color: var(--text-muted); font-weight: 400;
+    }
+
+    .cta-group {
+      display: flex; align-items: center; justify-content: center;
+      gap: 16px; flex-wrap: wrap; margin-bottom: 40px;
+    }
+    .btn-primary {
+      padding: 16px 36px; border-radius: 12px;
+      background: #00f0ff; color: #000;
+      font-size: 1.05rem; font-weight: 700;
+      text-decoration: none; display: inline-flex; align-items: center; gap: 10px;
+      box-shadow: 0 0 35px var(--primary-glow);
+      transition: all 0.25s ease;
+      border: none; cursor: pointer;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 50px rgba(0, 240, 255, 0.45);
+    }
+    .btn-secondary {
+      padding: 16px 28px; border-radius: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border); color: #fff;
+      font-size: 1.05rem; font-weight: 600;
+      text-decoration: none; display: inline-flex; align-items: center; gap: 10px;
+      transition: all 0.2s ease;
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .trust-chips {
+      display: flex; align-items: center; justify-content: center;
+      gap: 20px; flex-wrap: wrap;
+      font-size: 0.85rem; color: var(--text-muted);
+    }
+    .trust-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .trust-chip svg { color: var(--primary); }
+
+    /* Showcase */
+    .showcase {
+      margin: 40px auto 100px;
+      position: relative;
+      max-width: 860px;
+    }
+    .showcase-frame {
+      border-radius: 20px;
+      padding: 8px;
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(0, 240, 255, 0.2) 35%, rgba(255, 255, 255, 0.03));
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 80px rgba(0, 240, 255, 0.15);
+    }
+    /* Mockup Dashboard */
+    .mockup-container {
+      background: #090b10;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+      text-align: left;
+    }
+    .mockup-header-bar {
+      background: #11141c;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .mockup-dots {
+      display: flex;
+      gap: 6px;
+    }
+    .mockup-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+    }
+    .dot-r { background: #ff5f56; }
+    .dot-y { background: #ffbd2e; }
+    .dot-g { background: #27c93f; }
+    .mockup-cockpit-title {
+      font-size: 0.8rem; font-weight: 600; color: #94a3b8; font-family: var(--font-mono);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .mockup-body {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      background: radial-gradient(circle at 50% 15%, rgba(0, 240, 255, 0.05), transparent 60%), #0a0c12;
+    }
+    .cockpit-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 4px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .cockpit-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .cockpit-brand-img {
+      width: 40px; height: 40px; border-radius: 10px;
+      border: 1px solid rgba(0, 240, 255, 0.3);
+    }
+    .cockpit-brand-text h4 {
+      font-size: 1.15rem; font-weight: 800; letter-spacing: 0.05em; color: #fff;
+    }
+    .cockpit-brand-text span {
+      font-size: 0.72rem; color: #64748b; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+    }
+    .cockpit-perm-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 999px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #10b981; font-size: 0.8rem; font-weight: 700;
+    }
+    .cockpit-url-card {
+      background: rgba(18, 22, 33, 0.95);
+      border: 1px solid rgba(0, 240, 255, 0.25);
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .cockpit-url-label {
+      font-size: 0.72rem; font-weight: 700; color: #00f0ff; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px;
+    }
+    .cockpit-url-val {
+      font-family: var(--font-mono);
+      font-size: 1.05rem; font-weight: 700; color: #fff;
+    }
+    .cockpit-url-copy {
+      padding: 6px 14px; border-radius: 8px;
+      background: rgba(0, 240, 255, 0.15); border: 1px solid rgba(0, 240, 255, 0.3);
+      color: #00f0ff; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .cockpit-power-card {
+      background: rgba(18, 22, 33, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 30px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 14px;
+      position: relative;
+    }
+    .cockpit-power-btn {
+      width: 90px; height: 90px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.25), rgba(16, 185, 129, 0.05));
+      border: 2px solid #10b981;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      box-shadow: 0 0 30px rgba(16, 185, 129, 0.35);
+      cursor: pointer; transition: all 0.25s ease;
+      color: #fff;
+    }
+    .cockpit-power-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 45px rgba(16, 185, 129, 0.55);
+    }
+    .cockpit-power-btn span {
+      font-weight: 800; font-size: 0.9rem; letter-spacing: 0.05em; margin-top: 4px;
+    }
+    .cockpit-status-text {
+      font-size: 0.85rem; font-weight: 700; letter-spacing: 0.06em; color: #10b981;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .cockpit-toggles-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px; width: 100%; margin-top: 8px;
+    }
+    .cockpit-toggle-tile {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px; padding: 12px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .toggle-info span.title {
+      font-size: 0.85rem; font-weight: 700; color: #fff; display: block;
+    }
+    .toggle-info span.sub {
+      font-size: 0.72rem; color: #64748b; display: block;
+    }
+    .toggle-switch {
+      width: 36px; height: 20px; border-radius: 999px; background: #10b981;
+      position: relative; display: inline-block; cursor: pointer;
+    }
+    .toggle-switch::after {
+      content: ''; position: absolute; width: 14px; height: 14px; border-radius: 50%;
+      background: #fff; top: 3px; right: 3px;
+    }
+    .cockpit-params-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .cockpit-param-tile {
+      background: rgba(18, 22, 33, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px; padding: 12px;
+      text-align: center;
+    }
+    .param-label {
+      font-size: 0.68rem; font-weight: 700; color: #64748b; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px;
+    }
+    .param-val {
+      font-size: 0.95rem; font-weight: 800; color: #00f0ff; font-family: var(--font-mono);
+    }
+    @media (max-width: 600px) {
+      .cockpit-params-row { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* View Switcher Tabs */
+    .showcase-switch {
+      display: flex; justify-content: center; gap: 12px;
+      margin-bottom: 24px;
+    }
+    .view-tab-btn {
+      padding: 10px 22px; border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      color: var(--text-muted); font-size: 0.9rem; font-weight: 600;
+      cursor: pointer; transition: all 0.2s ease;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .view-tab-btn:hover {
+      background: rgba(255, 255, 255, 0.08); color: #fff;
+    }
+    .view-tab-btn.active {
+      background: rgba(0, 240, 255, 0.15);
+      border-color: rgba(0, 240, 255, 0.5);
+      color: #00f0ff; box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);
+    }
+
+    /* Tesla Center Screen Mockup */
+    .tesla-screen-container {
+      background: #06070a;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.15);
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .tesla-top-strip {
+      background: #0a0c10;
+      padding: 8px 18px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 0.75rem; color: #64748b; font-weight: 600;
+    }
+    .tesla-top-strip .strip-right {
+      display: flex; align-items: center; gap: 14px;
+    }
+    .tesla-main-split {
+      display: grid;
+      grid-template-columns: 32% 68%;
+      min-height: 480px;
+      background: #08090d;
+      position: relative;
+    }
+    /* Left: Vehicle telemetry */
+    .tesla-car-pane {
+      background: #090b10;
+      border-right: 1px solid rgba(255, 255, 255, 0.07);
+      padding: 24px 20px;
+      display: flex; flex-direction: column; justify-content: space-between;
+      position: relative;
+    }
+    .car-speed-box {
+      display: flex; align-items: baseline; gap: 8px;
+    }
+    .car-speed-num {
+      font-size: 3.2rem; font-weight: 800; color: #fff; line-height: 1; font-family: var(--font-mono);
+    }
+    .car-speed-unit {
+      font-size: 0.85rem; font-weight: 700; color: #64748b; text-transform: uppercase;
+    }
+    .gear-selector {
+      display: inline-flex; gap: 6px; font-weight: 700; font-size: 0.85rem; margin-top: 6px;
+      color: #475569;
+    }
+    .gear-selector span.active-gear {
+      color: #00f0ff; background: rgba(0, 240, 255, 0.15); padding: 1px 6px; border-radius: 4px;
+    }
+    .car-vis-area {
+      position: relative; height: 220px; display: flex; align-items: center; justify-content: center;
+    }
+    .car-lane-line {
+      position: absolute; width: 2px; height: 160px;
+      background: repeating-linear-gradient(to bottom, #334155, #334155 12px, transparent 12px, transparent 24px);
+    }
+    .lane-left { left: 25%; }
+    .lane-right { right: 25%; }
+    .tesla-model-car {
+      width: 72px; height: 140px; border-radius: 20px;
+      background: linear-gradient(180deg, #1e293b, #0f172a);
+      border: 1px solid #475569; position: relative; z-index: 2;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+      display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+      padding: 8px 4px;
+    }
+    .car-windshield {
+      width: 54px; height: 28px; border-radius: 8px;
+      background: #020617; border: 1px solid #334155;
+    }
+    .car-roof-glass {
+      width: 50px; height: 38px; border-radius: 6px;
+      background: rgba(0, 240, 255, 0.15); border: 1px solid rgba(0, 240, 255, 0.3);
+    }
+    .car-headlights {
+      position: absolute; top: 2px; width: 64px; display: flex; justify-content: space-between;
+    }
+    .headlight {
+      width: 10px; height: 3px; background: #38bdf8; border-radius: 2px;
+      box-shadow: 0 -4px 10px #38bdf8;
+    }
+    .battery-status-chip {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px; padding: 10px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 0.8rem; font-weight: 700;
+    }
+    .battery-bar-fill {
+      width: 44px; height: 7px; background: rgba(255, 255, 255, 0.1); border-radius: 4px; overflow: hidden;
+    }
+    .battery-bar-fill div { width: 82%; height: 100%; background: #10b981; border-radius: 4px; }
+
+    /* Right: Chromium Browser running TeslaDroid */
+    .tesla-browser-pane {
+      background: #0f121a;
+      display: flex; flex-direction: column;
+      position: relative; overflow: hidden;
+    }
+    .tesla-browser-url-bar {
+      background: #151922;
+      padding: 8px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.78rem;
+    }
+    .browser-url-pill {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px; padding: 4px 14px;
+      display: inline-flex; align-items: center; gap: 8px;
+      color: #e2e8f0; font-family: var(--font-mono); font-size: 0.75rem;
+    }
+    .stream-fps-badge {
+      font-size: 0.7rem; font-weight: 700; color: #10b981;
+      background: rgba(16, 185, 129, 0.1); padding: 2px 8px; border-radius: 4px;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+
+    /* Live In-Car Android Navigation Feed */
+    .tesla-stream-viewport {
+      flex: 1; position: relative;
+      background: 
+        radial-gradient(circle at 70% 30%, rgba(14, 165, 233, 0.1), transparent 60%),
+        #0b0f17;
+      overflow: hidden;
+      display: flex;
+    }
+    /* Side Dock App Strip */
+    .dock-strip {
+      width: 52px; background: rgba(10, 13, 20, 0.85);
+      border-right: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+      display: flex; flex-direction: column; align-items: center;
+      padding: 14px 0; gap: 14px; z-index: 10;
+    }
+    .dock-icon {
+      width: 34px; height: 34px; border-radius: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      display: flex; align-items: center; justify-content: center;
+      color: #94a3b8; font-size: 0.85rem; font-weight: 700;
+      transition: all 0.2s ease; cursor: pointer;
+    }
+    .dock-icon.active {
+      background: #00f0ff; color: #000; box-shadow: 0 0 14px rgba(0, 240, 255, 0.5);
+    }
+
+    /* Interactive Map Canvas */
+    .map-canvas {
+      flex: 1; position: relative;
+      background: 
+        linear-gradient(45deg, rgba(255, 255, 255, 0.02) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(255, 255, 255, 0.02) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.02) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.02) 75%);
+      background-size: 40px 40px;
+    }
+    /* SVG Map Roads */
+    .map-road-svg {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    }
+    /* Turn instruction banner */
+    .nav-turn-banner {
+      position: absolute; top: 16px; left: 16px; right: 16px;
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      backdrop-filter: blur(16px);
+      border-radius: 12px; padding: 14px 18px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+      z-index: 10;
+    }
+    .nav-turn-left {
+      display: flex; align-items: center; gap: 14px;
+    }
+    .nav-turn-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: #00f0ff; color: #000;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800;
+    }
+    .nav-turn-text h5 {
+      font-size: 1.05rem; font-weight: 800; color: #fff;
+    }
+    .nav-turn-text span {
+      font-size: 0.8rem; color: #94a3b8;
+    }
+    .nav-speed-badge {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 3px solid #ef4444; background: #fff; color: #000;
+      font-size: 0.95rem; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Floating Spotify Widget */
+    .floating-media-card {
+      position: absolute; bottom: 16px; left: 16px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(16px);
+      border-radius: 12px; padding: 10px 14px;
+      display: flex; align-items: center; gap: 12px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+      z-index: 10;
+    }
+    .media-art {
+      width: 36px; height: 36px; border-radius: 6px;
+      background: linear-gradient(135deg, #1db954, #121212);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff;
+    }
+    .media-info h6 {
+      font-size: 0.8rem; font-weight: 700; color: #fff; line-height: 1.2;
+    }
+    .media-info span {
+      font-size: 0.7rem; color: #94a3b8;
+    }
+
+    /* Bottom Tesla Climate & Controls Bar */
+    .tesla-bottom-panel {
+      background: #0a0c10;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 10px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      color: #94a3b8; font-size: 0.85rem; font-weight: 600;
+    }
+    .tesla-bottom-icons {
+      display: flex; align-items: center; gap: 20px;
+    }
+    .tesla-temp {
+      font-size: 1.05rem; font-weight: 800; color: #fff;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    @media (max-width: 768px) {
+      .tesla-main-split { grid-template-columns: 1fr; }
+      .tesla-car-pane { display: none; }
+    }
+    .section-header {
+      text-align: center; margin-bottom: 60px;
+    }
+    .section-tag {
+      font-size: 0.8rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--primary); margin-bottom: 12px; display: block;
+    }
+    .section-title {
+      font-size: clamp(2rem, 4vw, 2.8rem);
+      font-weight: 800; letter-spacing: -0.02em;
+    }
+
+    /* Features Grid */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px; margin-bottom: 120px;
+    }
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      backdrop-filter: blur(12px);
+      transition: all 0.3s ease;
+      position: relative; overflow: hidden;
+    }
+    .feature-card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-accent);
+      transform: translateY(-4px);
+    }
+    .feature-icon {
+      width: 48px; height: 48px; border-radius: 12px;
+      background: rgba(0, 240, 255, 0.1);
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 20px; color: var(--primary);
+    }
+    .feature-card h3 {
+      font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;
+    }
+    .feature-card p {
+      color: var(--text-muted); font-size: 0.95rem; line-height: 1.6;
+    }
+
+    /* Steps */
+    .steps-section {
+      margin-bottom: 120px;
+    }
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+    .step-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      position: relative;
+    }
+    .step-num {
+      font-family: var(--font-mono);
+      font-size: 2.5rem; font-weight: 800;
+      color: rgba(255, 255, 255, 0.08);
+      position: absolute; top: 16px; right: 24px;
+    }
+    .step-card h4 {
+      font-size: 1.15rem; font-weight: 700; margin-bottom: 12px;
+    }
+    .step-card p {
+      color: var(--text-muted); font-size: 0.9rem;
+    }
+
+    /* Donate Section */
+    .donate-section {
+      background: linear-gradient(180deg, rgba(18, 22, 33, 0.8), rgba(9, 10, 15, 0.95));
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 60px 40px;
+      margin-bottom: 120px;
+      text-align: center;
+      box-shadow: 0 0 60px rgba(0, 240, 255, 0.05);
+    }
+    .donate-header {
+      max-width: 650px; margin: 0 auto 36px;
+    }
+    .donate-header h2 {
+      font-size: 2.2rem; font-weight: 800; margin-bottom: 16px;
+    }
+    .donate-header p {
+      color: var(--text-muted); font-size: 1rem;
+    }
+    .patreon-cta {
+      margin-bottom: 36px; display: inline-block;
+    }
+    .patreon-btn {
+      display: inline-flex; align-items: center; gap: 12px;
+      padding: 14px 32px; border-radius: 12px;
+      background: #ff424d; color: #fff;
+      font-size: 1.05rem; font-weight: 700;
+      text-decoration: none; transition: all 0.25s ease;
+      box-shadow: 0 0 30px rgba(255, 66, 77, 0.3);
+    }
+    .patreon-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 45px rgba(255, 66, 77, 0.5);
+    }
+    .crypto-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px; max-width: 1000px; margin: 0 auto 30px;
+    }
+    .crypto-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      display: flex; flex-direction: column;
+      gap: 12px; text-align: left;
+      transition: all 0.2s ease;
+    }
+    .crypto-card:hover {
+      border-color: rgba(0, 240, 255, 0.3);
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .crypto-top {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .crypto-info {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .crypto-info .crypto-name {
+      font-weight: 700; font-size: 1rem;
+    }
+    .crypto-info .crypto-network {
+      font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);
+    }
+    .crypto-address {
+      font-family: var(--font-mono);
+      font-size: 0.78rem; color: #cbd5e1;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 10px 12px; border-radius: 8px;
+      word-break: break-all;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      user-select: all;
+    }
+    .copy-btn {
+      width: 100%; padding: 10px; border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border); color: #fff;
+      font-size: 0.85rem; font-weight: 600; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: all 0.2s ease;
+    }
+    .copy-btn:hover {
+      background: var(--primary); color: #000;
+    }
+
+    /* FAQ */
+    .faq-section {
+      max-width: 800px; margin: 0 auto 120px;
+    }
+    .faq-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px; margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .faq-question {
+      padding: 20px 24px; width: 100%;
+      text-align: left; background: none; border: none;
+      color: #fff; font-size: 1.05rem; font-weight: 600;
+      cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+    }
+    .faq-answer {
+      padding: 0 24px 20px; color: var(--text-muted);
+      font-size: 0.95rem; line-height: 1.6; display: none;
+    }
+    .faq-item.active .faq-answer { display: block; }
+    .faq-item.active .faq-chevron { transform: rotate(180deg); }
+    .faq-chevron { transition: transform 0.2s; }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 50px 0 40px;
+      color: var(--text-muted); font-size: 0.9rem;
+      text-align: center;
+    }
+    .footer-links {
+      display: flex; justify-content: center; gap: 24px;
+      margin-bottom: 20px; list-style: none;
+    }
+    .footer-links a {
+      color: var(--text-muted); text-decoration: none; transition: color 0.2s;
+    }
+    .footer-links a:hover { color: #fff; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 30px; right: 30px;
+      background: #00f0ff; color: #000; font-weight: 700;
+      padding: 12px 24px; border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0, 240, 255, 0.4);
+      z-index: 1000; opacity: 0; pointer-events: none;
+      transform: translateY(20px); transition: all 0.3s ease;
+    }
+    .toast.show {
+      opacity: 1; pointer-events: auto; transform: translateY(0);
+    }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .hero { padding: 60px 0 40px; }
+      .donate-section { padding: 40px 20px; }
+    }
+
+    /* Hero Donate Button */
+    .btn-donate-hero {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 24px; border-radius: 12px;
+      background: rgba(255, 66, 77, 0.12);
+      border: 1px solid rgba(255, 66, 77, 0.4);
+      color: #fff; font-weight: 700; font-size: 0.98rem;
+      text-decoration: none; transition: all 0.25s ease;
+    }
+    .btn-donate-hero:hover {
+      background: rgba(255, 66, 77, 0.24);
+      border-color: #ff424d;
+      box-shadow: 0 0 25px rgba(255, 66, 77, 0.4);
+      transform: translateY(-2px);
+      color: #fff;
+    }
+
+    /* Community Callout */
+    .community-callout {
+      display: inline-flex; align-items: center; justify-content: center; gap: 12px;
+      flex-wrap: wrap; margin: 20px auto 0;
+      padding: 10px 22px; border-radius: 999px;
+      background: rgba(255, 66, 77, 0.06);
+      border: 1px solid rgba(255, 66, 77, 0.25);
+      font-size: 0.88rem; color: #cbd5e1;
+      max-width: 780px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+    .callout-badge {
+      color: #ff6b75; font-weight: 800; font-size: 0.76rem; letter-spacing: 0.06em; text-transform: uppercase;
+      background: rgba(255, 66, 77, 0.15); padding: 3px 10px; border-radius: 999px;
+    }
+    .callout-link {
+      color: #ff6b75; font-weight: 700; text-decoration: none; border-bottom: 1px dashed rgba(255, 107, 117, 0.6);
+      transition: color 0.2s ease;
+    }
+    .callout-link:hover { color: #fff; border-bottom-color: #fff; }
+
+    /* Donate Section Badges & Impacts */
+    .donate-badge-wrap { margin-bottom: 16px; }
+    .donate-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 18px; border-radius: 999px;
+      background: rgba(255, 66, 77, 0.12); border: 1px solid rgba(255, 66, 77, 0.35);
+      color: #ff6b75; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    .donate-impact-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px; max-width: 900px; margin: 0 auto 36px;
+      text-align: left;
+    }
+    .impact-item {
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 12px; padding: 14px 18px;
+      display: flex; align-items: flex-start; gap: 12px;
+      transition: border-color 0.2s ease;
+    }
+    .impact-item:hover { border-color: rgba(255, 66, 77, 0.3); }
+    .impact-icon { font-size: 1.4rem; line-height: 1; flex-shrink: 0; }
+    .impact-item strong { display: block; font-size: 0.88rem; color: #fff; margin-bottom: 2px; }
+    .impact-item span { font-size: 0.78rem; color: var(--text-muted); line-height: 1.35; }
+
+    /* Distinctive Crypto Badges */
+    .crypto-badge {
+      padding: 3px 8px; border-radius: 6px; font-weight: 800; font-size: 0.8rem; font-family: var(--font-mono);
+    }
+    .badge-usdt { background: rgba(38, 161, 123, 0.2); color: #26a17b; border: 1px solid rgba(38, 161, 123, 0.4); }
+    .badge-btc { background: rgba(247, 147, 26, 0.2); color: #f7931a; border: 1px solid rgba(247, 147, 26, 0.4); }
+    .badge-eth { background: rgba(98, 126, 234, 0.2); color: #627eea; border: 1px solid rgba(98, 126, 234, 0.4); }
+    .badge-sol { background: rgba(20, 241, 149, 0.2); color: #14f195; border: 1px solid rgba(20, 241, 149, 0.4); }
+    .usdt-card:hover { border-color: rgba(38, 161, 123, 0.5); box-shadow: 0 0 25px rgba(38, 161, 123, 0.15); }
+    .btc-card:hover { border-color: rgba(247, 147, 26, 0.5); box-shadow: 0 0 25px rgba(247, 147, 26, 0.15); }
+    .eth-card:hover { border-color: rgba(98, 126, 234, 0.5); box-shadow: 0 0 25px rgba(98, 126, 234, 0.15); }
+    .sol-card:hover { border-color: rgba(20, 241, 149, 0.5); box-shadow: 0 0 25px rgba(20, 241, 149, 0.15); }
+
+  </style>
+</head>
+<body>
+  <div class="ambient-glow"></div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast">Address copied to clipboard!</div>
+
+  <!-- Navigation -->
+  <nav>
+    <div class="container nav-inner">
+      <a href="#" class="brand">
+        <img src="assets/logo_minimal_titanium.png" alt="TeslaDroid">
+        <span>TeslaDroid</span>
+        <span class="badge-ver">v1.0.0</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#features" data-i18n="nav_features">Features</a></li>
+        <li><a href="#how-it-works" data-i18n="nav_how">How It Works</a></li>
+        <li><a href="#donate" data-i18n="nav_donate">Donate</a></li>
+        <li><a href="https://github.com/tesladroid11/tesla-droid-app" target="_blank">GitHub</a></li>
+      </ul>
+      <div class="nav-actions">
+        <!-- Language Switcher Dropdown -->
+        <div class="lang-dropdown">
+          <button class="lang-btn" id="lang-btn" onclick="toggleLangMenu(event)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+            <span id="current-lang-code">EN</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div class="lang-menu" id="lang-menu">
+            <button class="lang-opt" data-lang="en" onclick="setLanguage('en')">English (EN)</button>
+            <button class="lang-opt" data-lang="uk" onclick="setLanguage('uk')">Українська (UK)</button>
+            <button class="lang-opt" data-lang="de" onclick="setLanguage('de')">Deutsch (DE)</button>
+            <button class="lang-opt" data-lang="fr" onclick="setLanguage('fr')">Français (FR)</button>
+            <button class="lang-opt" data-lang="es" onclick="setLanguage('es')">Español (ES)</button>
+            <button class="lang-opt" data-lang="it" onclick="setLanguage('it')">Italiano (IT)</button>
+            <button class="lang-opt" data-lang="pt" onclick="setLanguage('pt')">Português (PT)</button>
+            <button class="lang-opt" data-lang="pl" onclick="setLanguage('pl')">Polski (PL)</button>
+            <button class="lang-opt" data-lang="ru" onclick="setLanguage('ru')">Русский (RU)</button>
+            <button class="lang-opt" data-lang="zh" onclick="setLanguage('zh')">简体中文 (ZH)</button>
+            <button class="lang-opt" data-lang="ja" onclick="setLanguage('ja')">日本語 (JA)</button>
+            <button class="lang-opt" data-lang="ko" onclick="setLanguage('ko')">한국어 (KO)</button>
+          </div>
+        </div>
+
+        <a href="https://github.com/tesladroid11/tesla-droid-app/releases/download/v1.0.0/TeslaDroid-v1.0.0.apk" class="nav-btn apk-download-link" download="TeslaDroid-v1.0.0.apk">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span data-i18n="nav_download">Download APK</span>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <div class="pill">
+        <span class="pill-dot"></span>
+        <span data-i18n="hero_pill">Version 1.0.0 Released — Standalone Architecture</span>
+      </div>
+      <h1>
+        <span data-i18n="hero_title_1">Your Android Apps.</span><br>
+        <span class="gradient-text" data-i18n="hero_title_2">On Your Tesla Display.</span>
+      </h1>
+      <p data-i18n="hero_desc">
+        Stream Waze, YouTube, Spotify, and messaging apps directly to your Tesla infotainment center screen with ultra-low latency, bi-directional multi-touch control, zero root required.
+      </p>
+
+      <div class="cta-group">
+        <a href="https://github.com/tesladroid11/tesla-droid-app/releases/download/v1.0.0/TeslaDroid-v1.0.0.apk" class="btn-primary apk-download-link" download="TeslaDroid-v1.0.0.apk">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span data-i18n="btn_download_apk">Download APK (v1.0.0)</span>
+        </a>
+        <a href="#donate" class="btn-donate-hero">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#ff424d"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          <span data-i18n="nav_donate">Support Project</span>
+        </a>
+        <a href="https://github.com/tesladroid11/tesla-droid-app" class="btn-secondary" target="_blank">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          <span data-i18n="btn_view_github">GitHub</span>
+        </a>
+      </div>
+
+      <div class="trust-chips">
+        <span class="trust-chip"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg><span data-i18n="trust_no_root">No Root Required</span></span>
+        <span class="trust-chip"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg><span data-i18n="trust_shizuku">Shizuku Privileged Bridge</span></span>
+        <span class="trust-chip"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg><span data-i18n="trust_open_source">100% Free & Open Source</span></span>
+        <span class="trust-chip"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg><span data-i18n="trust_android_ver">Android 10+ Compatible</span></span>
+      </div>
+
+      <!-- Community Encouragement Callout -->
+      <div class="community-callout">
+        <span class="callout-badge">❤️ 100% Free · No Ads · Open Source</span>
+        <span class="callout-text">Built by independent developers. Help fund testing hardware & Tesla firmware maintenance:</span>
+        <a href="#donate" class="callout-link">Support Project ↓</a>
+      </div>
+
+      <!-- App Showcase Preview with Tab Switcher -->
+      <div class="showcase">
+        <div class="showcase-switch">
+          <button class="view-tab-btn active" id="btn-tesla" onclick="switchView('tesla')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+            <span data-i18n="tab_tesla_view">Tesla 15" Center Screen (In-Car View)</span>
+          </button>
+          <button class="view-tab-btn" id="btn-phone" onclick="switchView('phone')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+            <span data-i18n="tab_phone_view">Android Phone Cockpit App</span>
+          </button>
+        </div>
+
+        <div class="showcase-frame">
+          <!-- VIEW 1: 15" Tesla Infotainment Center Screen -->
+          <div id="view-tesla" class="tesla-screen-container">
+            <!-- Top Status Strip -->
+            <div class="tesla-top-strip">
+              <div>17:42 · 19°C Outside</div>
+              <div class="strip-right">
+                <span>Tesla Driver</span>
+                <span>LTE 📶</span>
+                <span>🔒 Locked</span>
+              </div>
+            </div>
+
+            <!-- Main Tesla Split: Left Car Telemetry / Right Browser Stream -->
+            <div class="tesla-main-split">
+              <!-- Left 32%: Car Gauges & 3D Avatar -->
+              <div class="tesla-car-pane">
+                <div>
+                  <div class="car-speed-box">
+                    <span class="car-speed-num">64</span>
+                    <span class="car-speed-unit">KM/H</span>
+                  </div>
+                  <div class="gear-selector">
+                    <span>P</span>
+                    <span>R</span>
+                    <span>N</span>
+                    <span class="active-gear">D</span>
+                  </div>
+                </div>
+
+                <!-- 3D Car Visualization Area -->
+                <div class="car-vis-area">
+                  <div class="car-lane-line lane-left"></div>
+                  <div class="car-lane-line lane-right"></div>
+                  <div class="tesla-model-car">
+                    <div class="car-headlights">
+                      <span class="headlight"></span>
+                      <span class="headlight"></span>
+                    </div>
+                    <div class="car-windshield"></div>
+                    <div class="car-roof-glass"></div>
+                    <div style="font-size: 0.55rem; color: #64748b; font-weight: 800;">TESLA</div>
+                  </div>
+                </div>
+
+                <!-- Battery Status -->
+                <div class="battery-status-chip">
+                  <span>82% · 388 km</span>
+                  <div class="battery-bar-fill">
+                    <div></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right 68%: Tesla Chromium Browser running TeslaDroid -->
+              <div class="tesla-browser-pane">
+                <!-- Browser URL Bar -->
+                <div class="tesla-browser-url-bar">
+                  <div class="browser-url-pill">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                    https://car.tesla-droid.app/rejbcq
+                  </div>
+                  <div class="stream-fps-badge">
+                    <span class="pill-dot" style="width: 6px; height: 6px;"></span>
+                    TeslaDroid 60 FPS · 8.4 Mbps
+                  </div>
+                </div>
+
+                <!-- Stream Viewport: Android Navigation & Media -->
+                <div class="tesla-stream-viewport">
+                  <!-- Side Dock Strip (TeslaDroid app drawer) -->
+                  <div class="dock-strip">
+                    <div class="dock-icon active" title="Waze Navigation">🗺️</div>
+                    <div class="dock-icon" title="Spotify">🎵</div>
+                    <div class="dock-icon" title="YouTube">▶️</div>
+                    <div class="dock-icon" title="Telegram">💬</div>
+                    <div class="dock-icon" title="Settings">⚙️</div>
+                  </div>
+
+                  <!-- Dark Cyber Navigation Canvas -->
+                  <div class="map-canvas">
+                    <!-- Stylized SVG Road & Route -->
+                    <svg class="map-road-svg" viewBox="0 0 500 350" preserveAspectRatio="none">
+                      <!-- Grid Roads -->
+                      <path d="M 0 180 Q 200 160 300 240 T 500 220" fill="none" stroke="#1e293b" stroke-width="28"/>
+                      <path d="M 180 0 Q 220 180 200 350" fill="none" stroke="#1e293b" stroke-width="24"/>
+                      <path d="M 380 0 L 380 350" fill="none" stroke="#1e293b" stroke-width="20"/>
+                      <!-- Active Glowing Navigation Route -->
+                      <path d="M 180 350 L 190 200 Q 200 170 230 170 L 450 170" fill="none" stroke="#00f0ff" stroke-width="7" stroke-linecap="round" style="filter: drop-shadow(0 0 8px #00f0ff);"/>
+                      <!-- Current Vehicle Position Marker -->
+                      <circle cx="190" cy="230" r="9" fill="#00f0ff" stroke="#fff" stroke-width="2.5" style="filter: drop-shadow(0 0 10px #00f0ff);"/>
+                    </svg>
+
+                    <!-- Navigation Turn-By-Turn Banner -->
+                    <div class="nav-turn-banner">
+                      <div class="nav-turn-left">
+                        <div class="nav-turn-icon">
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </div>
+                        <div class="nav-turn-text">
+                          <h5>In 250 m · Turn Right</h5>
+                          <span>Grand Avenue (via Waze Navigation)</span>
+                        </div>
+                      </div>
+                      <div class="nav-speed-badge">50</div>
+                    </div>
+
+                    <!-- Floating Spotify Music Card -->
+                    <div class="floating-media-card">
+                      <div class="media-art">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"></circle><path d="M8 11.5c3.5-1 6.5-.5 9 .5" stroke="#000" stroke-width="1.8" fill="none"/><path d="M8.5 14c2.8-.8 5.2-.4 7.2.4" stroke="#000" stroke-width="1.5" fill="none"/></svg>
+                      </div>
+                      <div class="media-info">
+                        <h6>Blinding Lights</h6>
+                        <span>The Weeknd · Tesla Bluetooth Audio</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom Tesla Controls Bar -->
+            <div class="tesla-bottom-panel">
+              <div class="tesla-bottom-icons">
+                <span style="color: #fff; cursor: pointer;">🚗 Controls</span>
+                <span>🪑 Heated Seats</span>
+                <span>💨 Defrost</span>
+              </div>
+              <div class="tesla-temp">
+                <span>◀</span> 21.5° <span>▶</span>
+              </div>
+              <div class="tesla-bottom-icons">
+                <span>🔊 Music</span>
+                <span>⚡ Energy</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- VIEW 2: Android Phone Cockpit App (Initially hidden) -->
+          <div id="view-phone" class="mockup-container" style="display: none;">
+            <!-- Mockup Header -->
+            <div class="mockup-header-bar">
+              <div class="mockup-dots">
+                <span class="mockup-dot dot-r"></span>
+                <span class="mockup-dot dot-y"></span>
+                <span class="mockup-dot dot-g"></span>
+              </div>
+              <div class="mockup-cockpit-title">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                TeslaDroid Native Infotainment Stream · 60 FPS
+              </div>
+              <div style="width: 48px;"></div>
+            </div>
+
+            <!-- Mockup Body (TeslaDroid Cockpit UI) -->
+            <div class="mockup-body">
+              <!-- Top Cockpit Bar -->
+              <div class="cockpit-top">
+                <div class="cockpit-brand">
+                  <img src="assets/logo_minimal_titanium.png" alt="Logo" class="cockpit-brand-img">
+                  <div class="cockpit-brand-text">
+                    <h4>TESLA DROID</h4>
+                    <span>YOUR ANDROID MIRROR IN TESLA</span>
+                  </div>
+                </div>
+                <div class="cockpit-perm-badge">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                  PERMISSIONS OK
+                </div>
+              </div>
+
+              <!-- Browser Link Card -->
+              <div class="cockpit-url-card">
+                <div>
+                  <div class="cockpit-url-label">TYPE IN TESLA BROWSER</div>
+                  <div class="cockpit-url-val">car.tesla-droid.app/rejbcq</div>
+                </div>
+                <div class="cockpit-url-copy">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  Copy URL
+                </div>
+              </div>
+
+              <!-- Hero Status & Big Power Button Card -->
+              <div class="cockpit-power-card">
+                <div class="cockpit-power-btn">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
+                  <span>START</span>
+                </div>
+                <div class="cockpit-status-text">
+                  <span class="pill-dot"></span>
+                  READY TO STREAM (TOUCH &amp; AUDIO ACTIVE)
+                </div>
+
+                <!-- Control Toggles -->
+                <div class="cockpit-toggles-row">
+                  <div class="cockpit-toggle-tile">
+                    <div class="toggle-info">
+                      <span class="title">Auto-start</span>
+                      <span class="sub">On BT connect</span>
+                    </div>
+                    <div class="toggle-switch"></div>
+                  </div>
+                  <div class="cockpit-toggle-tile">
+                    <div class="toggle-info">
+                      <span class="title">Dim Screen</span>
+                      <span class="sub">OLED battery save</span>
+                    </div>
+                    <div class="toggle-switch"></div>
+                  </div>
+                  <div class="cockpit-toggle-tile">
+                    <div class="toggle-info">
+                      <span class="title">Auto-Hotspot</span>
+                      <span class="sub">Auto stop/start</span>
+                    </div>
+                    <div class="toggle-switch"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Video & Display Parameters Row -->
+              <div class="cockpit-params-row">
+                <div class="cockpit-param-tile">
+                  <div class="param-label">BITRATE</div>
+                  <div class="param-val">8 Mbps</div>
+                </div>
+                <div class="cockpit-param-tile">
+                  <div class="param-label">REFRESH RATE</div>
+                  <div class="param-val">60 FPS</div>
+                </div>
+                <div class="cockpit-param-tile">
+                  <div class="param-label">AUDIO MODE</div>
+                  <div class="param-val" style="color: #10b981;">Tesla BT</div>
+                </div>
+                <div class="cockpit-param-tile">
+                  <div class="param-label">DPI SCALE</div>
+                  <div class="param-val">280 DPI</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Community Support & Donations (High Visibility) -->
+  <section id="donate" class="container">
+    <div class="donate-section">
+      <div class="donate-badge-wrap">
+        <span class="donate-pill">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="#ff424d"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          Community Supported & 100% Free
+        </span>
+      </div>
+
+      <div class="donate-header">
+        <h2 data-i18n="donate_title">Support TeslaDroid Development</h2>
+        <p data-i18n="donate_desc">TeslaDroid is 100% free, community-driven, and open source. Your contributions directly support testing hardware, server bandwidth, and continuous improvements.</p>
+      </div>
+
+      <!-- Why Support Impact Points -->
+      <div class="donate-impact-grid">
+        <div class="impact-item">
+          <span class="impact-icon">⚡</span>
+          <div>
+            <strong>Tesla Firmware Survival</strong>
+            <span>Continuous testing against new Tesla browser releases</span>
+          </div>
+        </div>
+        <div class="impact-item">
+          <span class="impact-icon">📱</span>
+          <div>
+            <strong>Multi-Device Lab</strong>
+            <span>Active maintenance for Xiaomi, Samsung, Pixel & OnePlus on Android 10–16</span>
+          </div>
+        </div>
+        <div class="impact-item">
+          <span class="impact-icon">🛡️</span>
+          <div>
+            <strong>Zero Monetization Guarantee</strong>
+            <span>No ads, no data tracking, no subscription locks — forever free</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Patreon Primary CTA -->
+      <div class="patreon-cta">
+        <a href="https://www.patreon.com/cw/TeslaDroidApp" class="patreon-btn" target="_blank">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M14.82 2.41a8.4 8.4 0 0 0-8.4 8.4c0 4.6 3.75 8.35 8.4 8.35 4.6 0 8.35-3.75 8.35-8.35 0-4.65-3.75-8.4-8.35-8.4zm-12.4 0H0v19.18h2.42V2.41z"/></svg>
+          <span data-i18n="patreon_btn">Support on Patreon</span>
+        </a>
+      </div>
+
+      <!-- Crypto Cards -->
+      <div class="crypto-cards">
+        <!-- USDT TRC20 -->
+        <div class="crypto-card usdt-card">
+          <div class="crypto-top">
+            <div class="crypto-info">
+              <span class="crypto-badge badge-usdt">USDT</span>
+              <span class="crypto-network">TRC-20</span>
+            </div>
+          </div>
+          <div class="crypto-address" id="addr-usdt">TFghs2UzVVTo8xLbe9aws2WBc8YvrNB8kW</div>
+          <button class="copy-btn" onclick="copyAddress('addr-usdt')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            <span data-i18n="copy_usdt">Copy USDT Address</span>
+          </button>
+        </div>
+
+        <!-- Bitcoin -->
+        <div class="crypto-card btc-card">
+          <div class="crypto-top">
+            <div class="crypto-info">
+              <span class="crypto-badge badge-btc">BTC</span>
+              <span class="crypto-network">Native SegWit</span>
+            </div>
+          </div>
+          <div class="crypto-address" id="addr-btc">bc1qj92ptfk7vahdm94vh805zgymxx2ggt6zn2rqat</div>
+          <button class="copy-btn" onclick="copyAddress('addr-btc')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            <span data-i18n="copy_btc">Copy BTC Address</span>
+          </button>
+        </div>
+
+        <!-- Ethereum -->
+        <div class="crypto-card eth-card">
+          <div class="crypto-top">
+            <div class="crypto-info">
+              <span class="crypto-badge badge-eth">ETH</span>
+              <span class="crypto-network">ERC-20 / Arbitrum</span>
+            </div>
+          </div>
+          <div class="crypto-address" id="addr-eth">0xb46e07cded28324b49086eb1aa2c2bea7654354d</div>
+          <button class="copy-btn" onclick="copyAddress('addr-eth')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            <span data-i18n="copy_eth">Copy ETH Address</span>
+          </button>
+        </div>
+
+        <!-- Solana -->
+        <div class="crypto-card sol-card">
+          <div class="crypto-top">
+            <div class="crypto-info">
+              <span class="crypto-badge badge-sol">SOL</span>
+              <span class="crypto-network">Solana Network</span>
+            </div>
+          </div>
+          <div class="crypto-address" id="addr-sol">7Hx5Q3uPN63NYMGCn214HxvnYQVxvafxLSQYEXPqFNuE</div>
+          <button class="copy-btn" onclick="copyAddress('addr-sol')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            <span data-i18n="copy_sol">Copy SOL Address</span>
+          </button>
+        </div>
+      </div>
+      
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 24px;">
+        Prefer other payment methods? Check our <a href="https://github.com/tesladroid11/tesla-droid-app" target="_blank" style="color: var(--primary);">GitHub Sponsors & Funding</a> options.
+      </p>
+    </div>
+  </section>
+
+  <!-- Features Grid -->
+  <section id="features" class="container">
+    <div class="section-header">
+      <span class="section-tag" data-i18n="features_tag">Engineering Highlights</span>
+      <h2 class="section-title" data-i18n="features_title">Built for Driver Precision</h2>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        </div>
+        <h3 data-i18n="feat_codec_title">Hardware MediaCodec Engine</h3>
+        <p data-i18n="feat_codec_desc">Direct low-latency H.264 & HEVC hardware encoding targeting up to 60 FPS. Configurable bitrate from 4 Mbps up to 20 Mbps with custom DPI scaling tailored to Tesla's center display.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        </div>
+        <h3 data-i18n="feat_touch_title">Bi-directional Touch Bridge</h3>
+        <p data-i18n="feat_touch_desc">Full multi-touch, pinch-to-zoom, and scrolling gestures transmitted directly back from the Tesla browser into Android through the privileged Shizuku system service without root.</p>
+      </div>
+
+      <div class="feature-card" id="gps-shield">
+        <div class="feature-icon" style="color: #f59e0b; background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.2);">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+        </div>
+        <h3 data-i18n="feat_gps_title">GPS Shield (Navigation Guard)</h3>
+        <p data-i18n="feat_gps_desc">Safeguards navigation apps (Waze, Google Maps) from satellite anomalies and signal jumps. Seamlessly transitions navigation apps to fused cellular network and Wi-Fi positioning.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+        </div>
+        <h3 data-i18n="feat_audio_title">Dual Audio Routing</h3>
+        <p data-i18n="feat_audio_desc">Direct low-latency Bluetooth routing to the car speakers, or uncompressed 16-bit PCM / bandwidth-efficient Opus audio streamed directly through the browser session with delay sync control.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+        </div>
+        <h3 data-i18n="feat_auto_title">Smart Drive Automations</h3>
+        <p data-i18n="feat_auto_desc">Auto-start stream when connecting to your Tesla's Bluetooth or designated in-car Wi-Fi. Automatically toggles phone hotspot and dims the physical phone display to save battery.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+        </div>
+        <h3 data-i18n="feat_ai_title">Multimodal AI Assistant</h3>
+        <p data-i18n="feat_ai_desc">Built-in hands-free wake word detection ("Hey Tesla"), responsive edge glow visual effects, and Google Gemini live multimodal voice assistance right from the Tesla screen.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section id="how-it-works" class="container steps-section">
+    <div class="section-header">
+      <span class="section-tag" data-i18n="how_tag">Quick Start</span>
+      <h2 class="section-title" data-i18n="how_title">Ready in 3 Simple Steps</h2>
+    </div>
+
+    <div class="steps-grid">
+      <div class="step-card">
+        <span class="step-num">01</span>
+        <h4 data-i18n="step1_title">Install & Pair Shizuku</h4>
+        <p data-i18n="step1_desc">Install TeslaDroid APK and grant privileged shell permissions via Shizuku using Wireless Debugging in Developer Options. No computer and no root required.</p>
+      </div>
+
+      <div class="step-card">
+        <span class="step-num">02</span>
+        <h4 data-i18n="step2_title">Connect Car Wi-Fi</h4>
+        <p data-i18n="step2_desc">Turn on your phone's Wi-Fi hotspot (WPA2). On your Tesla touchscreen, connect to your phone's hotspot and check "Remain connected in Drive".</p>
+      </div>
+
+      <div class="step-card">
+        <span class="step-num">03</span>
+        <h4 data-i18n="step3_title">Open Tesla Browser</h4>
+        <p data-i18n="step3_desc">Open the vehicle Chromium browser, type the displayed short URL (or bookmark your local IP), and enjoy full Android mirroring directly on your dashboard.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Donate / Support Section -->
+
+  <!-- FAQ Section -->
+  <section class="container faq-section">
+    <div class="section-header">
+      <span class="section-tag" data-i18n="faq_tag">Frequently Asked Questions</span>
+      <h2 class="section-title" data-i18n="faq_title">Everything You Need to Know</h2>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        <span data-i18n="faq_q1">Does TeslaDroid require Root privileges?</span>
+        <svg class="faq-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <div class="faq-answer" data-i18n="faq_a1">
+        No! TeslaDroid leverages Shizuku via standard Android Wireless Debugging to interact with system touch input services (`/dev/input`). Your device's warranty, banking apps, and system integrity remain completely intact.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        <span data-i18n="faq_q2">Does it work while the vehicle is driving (in Drive mode)?</span>
+        <svg class="faq-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <div class="faq-answer" data-i18n="faq_a2">
+        Yes. In Tesla's Wi-Fi settings, make sure to check "Remain connected in Drive". The Tesla Chromium browser stays active and connected while driving, allowing continuous navigation via Waze or Google Maps.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        <span data-i18n="faq_q3">How does GPS Shield protect navigation?</span>
+        <svg class="faq-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <div class="faq-answer" data-i18n="faq_a3">
+        GPS Shield monitors satellite reception integrity, spoofed speed jumps, and coordinate anomalies. When interference or jamming is detected, it automatically switches navigation apps to fused cellular and Wi-Fi positioning to keep route tracking uninterrupted.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        <span data-i18n="faq_q4">Is my stream and vehicle data private?</span>
+        <svg class="faq-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <div class="faq-answer" data-i18n="faq_a4">
+        100% private. All video frames, audio samples, and touch events are transmitted strictly over your phone's local private Wi-Fi hotspot over TLS (HTTPS/WSS). No video data is ever sent to external cloud servers.
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <ul class="footer-links">
+        <li><a href="https://github.com/tesladroid11/tesla-droid-app" target="_blank">GitHub Repository</a></li>
+        <li><a href="https://github.com/tesladroid11/tesla-droid-app/releases" target="_blank">Releases</a></li>
+        <li><a href="https://github.com/tesladroid11/tesla-droid-app/issues" target="_blank">Issue Tracker</a></li>
+        <li><a href="#donate">Donate</a></li>
+      </ul>
+      <p style="margin-bottom: 8px;">
+        <span data-i18n="footer_license">Released under the Apache 2.0 Open Source License.</span>
+      </p>
+      <p style="font-size: 0.8rem; color: #64748b;">
+        <span data-i18n="footer_disclaimer">Disclaimer: TeslaDroid is an independent open-source project and is not affiliated with, endorsed by, or associated with Tesla, Inc. or Alphabet, Inc.</span>
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    function copyAddress(id) {
+      const el = document.getElementById(id);
+      const text = el.innerText.trim();
+      navigator.clipboard.writeText(text).then(() => {
+        showToast("Address copied to clipboard!");
+      }).catch(() => {
+        showToast("Copied!");
+      });
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.classList.add('show');
+      setTimeout(() => { toast.classList.remove('show'); }, 2500);
+    }
+
+    function toggleFaq(btn) {
+      const item = btn.parentElement;
+      item.classList.toggle('active');
+    }
+
+    function switchView(mode) {
+      const teslaView = document.getElementById('view-tesla');
+      const phoneView = document.getElementById('view-phone');
+      const btnTesla = document.getElementById('btn-tesla');
+      const btnPhone = document.getElementById('btn-phone');
+
+      if (mode === 'tesla') {
+        teslaView.style.display = 'flex';
+        phoneView.style.display = 'none';
+        btnTesla.classList.add('active');
+        btnPhone.classList.remove('active');
+      } else {
+        teslaView.style.display = 'none';
+        phoneView.style.display = 'block';
+        btnPhone.classList.add('active');
+        btnTesla.classList.remove('active');
+      }
+    }
+  
+    const translations = {"en": {"nav_features": "Features", "nav_how": "How It Works", "nav_donate": "Donate", "nav_download": "Download APK", "hero_pill": "Version 1.0.0 Released — Standalone Architecture", "hero_title_1": "Your Android Apps.", "hero_title_2": "On Your Tesla Display.", "hero_desc": "Stream Waze, YouTube, Spotify, and messaging apps directly to your Tesla infotainment center screen with ultra-low latency, bi-directional multi-touch control, zero root required.", "btn_download_apk": "Download APK (v1.0.0)", "btn_view_github": "View on GitHub", "trust_no_root": "No Root Required", "trust_shizuku": "Shizuku Privileged Bridge", "trust_open_source": "100% Free & Open Source", "trust_android_ver": "Android 10+ Compatible", "tab_tesla_view": "Tesla 15\" Center Screen (In-Car View)", "tab_phone_view": "Android Phone Cockpit App", "features_tag": "Engineering Highlights", "features_title": "Built for Driver Precision", "feat_codec_title": "Hardware MediaCodec Engine", "feat_codec_desc": "Direct low-latency H.264 & HEVC hardware encoding targeting up to 60 FPS. Configurable bitrate from 4 Mbps up to 20 Mbps with custom DPI scaling tailored to Tesla's center display.", "feat_touch_title": "Bi-directional Touch Bridge", "feat_touch_desc": "Full multi-touch, pinch-to-zoom, and scrolling gestures transmitted directly back from the Tesla browser into Android through the privileged Shizuku system service without root.", "feat_gps_title": "GPS Shield (Navigation Guard)", "feat_gps_desc": "Safeguards navigation apps (Waze, Google Maps) from satellite anomalies and signal jumps. Seamlessly transitions navigation apps to fused cellular network and Wi-Fi positioning.", "feat_audio_title": "Dual Audio Routing", "feat_audio_desc": "Direct low-latency Bluetooth routing to the car speakers, or uncompressed 16-bit PCM / bandwidth-efficient Opus audio streamed directly through the browser session with delay sync control.", "feat_auto_title": "Smart Drive Automations", "feat_auto_desc": "Auto-start stream when connecting to your Tesla's Bluetooth or designated in-car Wi-Fi. Automatically toggles phone hotspot and dims the physical phone display to save battery.", "feat_ai_title": "Multimodal AI Assistant", "feat_ai_desc": "Built-in hands-free wake word detection (\"Hey Tesla\"), responsive edge glow visual effects, and Google Gemini live multimodal voice assistance right from the Tesla screen.", "how_tag": "Quick Start", "how_title": "Ready in 3 Simple Steps", "step1_title": "Install & Pair Shizuku", "step1_desc": "Install TeslaDroid APK and grant privileged shell permissions via Shizuku using Wireless Debugging in Developer Options. No computer and no root required.", "step2_title": "Connect Car Wi-Fi", "step2_desc": "Turn on your phone's Wi-Fi hotspot (WPA2). On your Tesla touchscreen, connect to your phone's hotspot and check \"Remain connected in Drive\".", "step3_title": "Open Tesla Browser", "step3_desc": "Open the vehicle Chromium browser, type the displayed short URL (or bookmark your local IP), and enjoy full Android mirroring directly on your dashboard.", "donate_title": "Support TeslaDroid Development", "donate_desc": "TeslaDroid is 100% free, community-driven, and open source. Your contributions directly support testing hardware, server bandwidth, and continuous improvements.", "patreon_btn": "Support on Patreon", "copy_usdt": "Copy USDT Address", "copy_btc": "Copy BTC Address", "copy_eth": "Copy ETH Address", "copy_sol": "Copy SOL Address", "faq_tag": "Frequently Asked Questions", "faq_title": "Everything You Need to Know", "faq_q1": "Does TeslaDroid require Root privileges?", "faq_a1": "No! TeslaDroid leverages Shizuku via standard Android Wireless Debugging to interact with system touch input services (/dev/input). Your device's warranty, banking apps, and system integrity remain completely intact.", "faq_q2": "Does it work while the vehicle is driving (in Drive mode)?", "faq_a2": "Yes. In Tesla's Wi-Fi settings, make sure to check \"Remain connected in Drive\". The Tesla Chromium browser stays active and connected while driving, allowing continuous navigation via Waze or Google Maps.", "faq_q3": "How does GPS Shield protect navigation?", "faq_a3": "GPS Shield monitors satellite reception integrity, spoofed speed jumps, and coordinate anomalies. When interference or signal loss is detected, it automatically switches navigation apps to fused cellular and Wi-Fi positioning to keep route tracking uninterrupted.", "faq_q4": "Is my stream and vehicle data private?", "faq_a4": "100% private. All video frames, audio samples, and touch events are transmitted strictly over your phone's local private Wi-Fi hotspot over TLS (HTTPS/WSS). No video data is ever sent to external cloud servers.", "footer_license": "Released under the Apache 2.0 Open Source License.", "footer_disclaimer": "Disclaimer: TeslaDroid is an independent open-source project and is not affiliated with, endorsed by, or associated with Tesla, Inc. or Alphabet, Inc."}, "uk": {"nav_features": "Функції", "nav_how": "Як це працює", "nav_donate": "Підтримати", "nav_download": "Завантажити APK", "hero_pill": "Версія 1.0.0 — Автономна архітектура", "hero_title_1": "Ваші Android-додатки.", "hero_title_2": "На дисплеї вашої Tesla.", "hero_desc": "Транслюйте Waze, YouTube, Spotify та месенджери безпосередньо на центральний сенсорний екран Tesla з мінімальною затримкою, двостороннім мультитач-керуванням без потреби в Root.", "btn_download_apk": "Завантажити APK (v1.0.0)", "btn_view_github": "Код на GitHub", "trust_no_root": "Без Root-прав", "trust_shizuku": "Привілейований міст Shizuku", "trust_open_source": "100% Безкоштовний Open Source", "trust_android_ver": "Сумісно з Android 10+", "tab_tesla_view": "15\" Дисплей Tesla (В салоні авто)", "tab_phone_view": "Мобільний додаток TeslaDroid", "features_tag": "Інженерні переваги", "features_title": "Створено для водія", "feat_codec_title": "Апаратний рушій MediaCodec", "feat_codec_desc": "Пряме апаратне кодування H.264 та HEVC до 60 кадрів/с. Бітрейт, що налаштовується від 4 до 20 Мбіт/с, та адаптивне DPI-масштабування під дисплей Tesla.", "feat_touch_title": "Двосторонній сенсорний міст", "feat_touch_desc": "Повноцінний мультитач, жести маштабування (pinch-to-zoom) та скрол із браузера Tesla передаються прямо в систему Android через безпечний сервіс Shizuku.", "feat_gps_title": "GPS Shield (Захист навігації)", "feat_gps_desc": "Захищає навігаційні програми (Waze, Google Maps) від аномалій сигналу та супутникових збоїв. Безперервно перемикає позиціонування на стільникові вежі та Wi-Fi.", "feat_audio_title": "Подвійна маршрутизація звуку", "feat_audio_desc": "Пряме бездротове відтворення звуку через штатний Bluetooth авто без затримок, або трансляція 16-бітного PCM / Opus прямо через браузер із синхронізацією.", "feat_auto_title": "Розумна автоматизація водіння", "feat_auto_desc": "Автоматичний старт трансляції при підключенні до Bluetooth Tesla або обраної мережі Wi-Fi. Автоматичне вмикання точки доступу та затемнення екрана смартфона.", "feat_ai_title": "Мультимодальний AI-асистент", "feat_ai_desc": "Активація голосом за фразою «Hey Tesla», динамічна неонова візуалізація та живий голосовий асистент Google Gemini прямо на дисплеї Tesla.", "how_tag": "Швидкий старт", "how_title": "Готово у 3 прості кроки", "step1_title": "Встановіть та запустіть Shizuku", "step1_desc": "Встановіть APK TeslaDroid і надайте права через Shizuku за допомогою бездротового налагодження (Wireless Debugging). Комп'ютер чи Root не потрібні.", "step2_title": "Підключіть Wi-Fi авто", "step2_desc": "Увімкніть точку доступу на телефоні (WPA2). На екрані Tesla підключіться до вашого Wi-Fi та поставте галочку «Залишатися на зв'язку на ходу».", "step3_title": "Відкрийте браузер Tesla", "step3_desc": "Запустіть браузер у Tesla, введіть коротку адресу (або збережіть її в закладки) та насолоджуйтесь повноекранним Android.", "donate_title": "Підтримайте розробку TeslaDroid", "donate_desc": "TeslaDroid — на 100% безкоштовний відкритий проєкт. Ваші внески підтримують придбання тестових пристроїв, роботу серверів та розвиток проєкту.", "patreon_btn": "Підтримати на Patreon", "copy_usdt": "Скопіювати USDT", "copy_btc": "Скопіювати BTC", "copy_eth": "Скопіювати ETH", "copy_sol": "Скопіювати SOL", "faq_tag": "Часті запитання", "faq_title": "Все, що вам потрібно знати", "faq_q1": "Чи потрібні права Root?", "faq_a1": "Ні! TeslaDroid використовує Shizuku через стандартне бездротове налагодження Android для передачі дотиків (/dev/input). Гарантія, банківські програми та безпека системи повністю зберігаються.", "faq_q2": "Чи працює додаток під час руху автомобіля (в режимі Drive)?", "faq_a2": "Так. У налаштуваннях Wi-Fi автомобіля Tesla обов'язково поставте відмітку «Залишатися на зв'язку в режимі Drive». Браузер залишається активним під час руху, дозволяючи повноцінно користуватися Waze чи Google Maps.", "faq_q3": "Як функція GPS Shield захищає навігацію?", "faq_a3": "GPS Shield аналізує цілісність супутникового сигналу та стрибки координат. При виявленні аномалій система миттєво перемикає додатки на позиціонування за стільниковими вишками та Wi-Fi для збереження ведення по маршруту.", "faq_q4": "Чи безпечні мої дані та трансляція?", "faq_a4": "Абсолютно на 100%. Відеопотік, звук та сенсорні дотики передаються виключно всередині вашої локальної мережі Wi-Fi по захищеному протоколу TLS (HTTPS/WSS). Жодні дані не передаються на сторонні хмари.", "footer_license": "Розповсюджується під відкритою ліцензією Apache 2.0.", "footer_disclaimer": "Відмова від відповідальності: TeslaDroid є незалежним відкритим проєктом і не афілійований з Tesla, Inc. або Alphabet, Inc."}, "fr": {"nav_features": "Fonctionnalités", "nav_how": "Comment ça marche", "nav_donate": "Faire un don", "nav_download": "Télécharger l'APK", "hero_pill": "Version 1.0.0 disponible — Architecture autonome", "hero_title_1": "Vos applications Android.", "hero_title_2": "Sur l'écran de votre Tesla.", "hero_desc": "Diffusez Waze, YouTube, Spotify et vos applications directement sur l'écran central de votre Tesla avec une latence ultra-faible et contrôle tactile bidirectionnel, sans root.", "btn_download_apk": "Télécharger l'APK (v1.0.0)", "btn_view_github": "Voir sur GitHub", "trust_no_root": "Aucun root requis", "trust_shizuku": "Pont privilégié Shizuku", "trust_open_source": "100% Gratuit & Open Source", "trust_android_ver": "Compatible Android 10+", "tab_tesla_view": "Écran central 15\" Tesla (Vue en voiture)", "tab_phone_view": "Application mobile TeslaDroid", "features_tag": "Points forts d'ingénierie", "features_title": "Conçu pour la précision du conducteur", "feat_codec_title": "Moteur matériel MediaCodec", "feat_codec_desc": "Encodage matériel H.264 et HEVC direct jusqu'à 60 FPS. Débit binaire réglable de 4 à 20 Mbps avec mise à l'échelle DPI adaptée à l'écran Tesla.", "feat_touch_title": "Pont tactile bidirectionnel", "feat_touch_desc": "Contrôle multi-touch, zoom par pincement et défilement retransmis depuis le navigateur Tesla vers Android via le service Shizuku sans aucun accès root.", "feat_gps_title": "GPS Shield (Protection Navigation)", "feat_gps_desc": "Protège les applications de navigation (Waze, Google Maps) contre les anomalies satellites et les sauts de coordonnées grâce au réseau cellulaire et Wi-Fi.", "feat_audio_title": "Double routage audio", "feat_audio_desc": "Routage Bluetooth direct vers les haut-parleurs de la Tesla, ou flux audio PCM 16 bits non compressé / Opus dans le navigateur avec compensation de délai.", "feat_auto_title": "Automatisations intelligentes", "feat_auto_desc": "Démarrage automatique à la connexion Bluetooth ou Wi-Fi. Active le point d'accès du téléphone et assombrit l'écran physique pour économiser la batterie.", "feat_ai_title": "Assistant IA multimodal", "feat_ai_desc": "Détection vocale « Hey Tesla », animation de lueur réactive et intégration directe avec Google Gemini en direct depuis l'écran de la Tesla.", "how_tag": "Démarrage rapide", "how_title": "Prêt en 3 étapes simples", "step1_title": "Installez et associez Shizuku", "step1_desc": "Installez l'APK TeslaDroid et accordez les privilèges via Shizuku en utilisant le débogage sans fil. Aucun ordinateur ni root n'est requis.", "step2_title": "Connectez le Wi-Fi du véhicule", "step2_desc": "Activez le point d'accès Wi-Fi de votre téléphone. Sur votre Tesla, connectez-vous au point d'accès et cochez « Rester connecté en mode conduite ».", "step3_title": "Ouvrez le navigateur Tesla", "step3_desc": "Lancez le navigateur de la Tesla, saisissez l'URL courte affichée (ou enregistrez-la dans vos favoris) et profitez d'Android en plein écran.", "donate_title": "Soutenez le développement de TeslaDroid", "donate_desc": "TeslaDroid est un projet communautaire 100% gratuit et open source. Vos dons soutiennent directement le matériel de test et les serveurs.", "patreon_btn": "Soutenir sur Patreon", "copy_usdt": "Copier l'adresse USDT", "copy_btc": "Copier l'adresse BTC", "copy_eth": "Copier l'adresse ETH", "copy_sol": "Copier l'adresse SOL", "faq_tag": "Foire Aux Questions", "faq_title": "Tout ce que vous devez savoir", "faq_q1": "TeslaDroid nécessite-t-il les privilèges Root ?", "faq_a1": "Non ! TeslaDroid utilise Shizuku via le débogage sans fil standard d'Android pour interagir avec les entrées tactiles (/dev/input). Votre garantie et vos applications bancaires restent intactes.", "faq_q2": "Est-ce que cela fonctionne pendant la conduite (mode Drive) ?", "faq_a2": "Oui. Dans les paramètres Wi-Fi de votre Tesla, cochez impérativement « Rester connecté en mode conduite ». Le navigateur reste connecté et actif en roulant.", "faq_q3": "Comment le GPS Shield protège-t-il la navigation ?", "faq_a3": "GPS Shield surveille la réception satellite et les anomalies de vitesse. En cas de perturbation, il bascule sur le positionnement cellulaire et Wi-Fi pour maintenir l'itinéraire.", "faq_q4": "Mes données sont-elles privées ?", "faq_a4": "100% privées. Toutes les images vidéo, le son et les touches sont transmis exclusivement sur votre point d'accès Wi-Fi local sécurisé par TLS (HTTPS/WSS). Aucun flux n'est envoyé vers le cloud.", "footer_license": "Publié sous licence Open Source Apache 2.0.", "footer_disclaimer": "Avertissement : TeslaDroid est un projet open-source indépendant et n'est affilié ni approuvé par Tesla, Inc. ou Alphabet, Inc."}, "es": {"nav_features": "Características", "nav_how": "Cómo funciona", "nav_donate": "Donar", "nav_download": "Descargar APK", "hero_pill": "Versión 1.0.0 lanzada — Arquitectura independiente", "hero_title_1": "Tus aplicaciones de Android.", "hero_title_2": "En la pantalla de tu Tesla.", "hero_desc": "Transmite Waze, YouTube, Spotify y aplicaciones de mensajería directamente a la pantalla central de tu Tesla con latencia ultrabaja y control multitáctil bidireccional, sin necesidad de root.", "btn_download_apk": "Descargar APK (v1.0.0)", "btn_view_github": "Ver en GitHub", "trust_no_root": "Sin necesidad de Root", "trust_shizuku": "Puente privilegiado Shizuku", "trust_open_source": "100% Gratuito y Código Abierto", "trust_android_ver": "Compatible con Android 10+", "tab_tesla_view": "Pantalla central 15\" Tesla (En el auto)", "tab_phone_view": "Aplicación móvil TeslaDroid", "features_tag": "Aspectos técnicos destacados", "features_title": "Diseñado para la precisión al conducir", "feat_codec_title": "Motor acelerado por MediaCodec", "feat_codec_desc": "Codificación por hardware directa H.264 y HEVC hasta 60 FPS. Tasa de bits ajustable de 4 a 20 Mbps y escalado DPI optimizado para la pantalla central de Tesla.", "feat_touch_title": "Puente táctil bidireccional", "feat_touch_desc": "Gestos multitáctiles, zoom y desplazamiento transmitidos directamente desde el navegador de Tesla hacia Android mediante el servicio privilegiado Shizuku sin root.", "feat_gps_title": "GPS Shield (Protección de navegación)", "feat_gps_desc": "Protege las aplicaciones de navegación (Waze, Google Maps) contra anomalías satelitales y saltos de coordenadas mediante el uso de redes celulares y Wi-Fi.", "feat_audio_title": "Enrutamiento de audio dual", "feat_audio_desc": "Audio directo por Bluetooth al sistema de sonido de Tesla sin retraso, o transmisión PCM de 16 bits sin pérdidas / Opus en el navegador con sincronización.", "feat_auto_title": "Automatizaciones de conducción", "feat_auto_desc": "Inicio automático al conectar con el Bluetooth del Tesla o Wi-Fi designado. Enciende automáticamente la zona Wi-Fi del teléfono y atenúa la pantalla física.", "feat_ai_title": "Asistente IA multimodal", "feat_ai_desc": "Activación por voz manos libres con la palabra clave «Hey Tesla», efectos visuales de borde y asistencia en vivo con Google Gemini.", "how_tag": "Inicio rápido", "how_title": "Listo en 3 sencillos pasos", "step1_title": "Instalar y emparejar Shizuku", "step1_desc": "Instala el APK de TeslaDroid y concede permisos shell mediante Shizuku usando Depuración inalámbrica en Opciones de desarrollador. Sin PC ni root.", "step2_title": "Conectar al Wi-Fi del auto", "step2_desc": "Activa la zona Wi-Fi de tu teléfono (WPA2). En la pantalla de tu Tesla, conéctate a tu red y marca «Permanecer conectado en modo Conducción».", "step3_title": "Abrir el navegador de Tesla", "step3_desc": "Abre el navegador web de tu Tesla, escribe la URL corta mostrada (o guárdala en marcadores) y disfruta de Android en pantalla completa.", "donate_title": "Apoya el desarrollo de TeslaDroid", "donate_desc": "TeslaDroid es un proyecto comunitario 100% gratuito y de código abierto. Tus aportaciones financian dispositivos de prueba y servidores.", "patreon_btn": "Apoyar en Patreon", "copy_usdt": "Copiar dirección USDT", "copy_btc": "Copiar dirección BTC", "copy_eth": "Copiar dirección ETH", "copy_sol": "Copiar dirección SOL", "faq_tag": "Preguntas frecuentes", "faq_title": "Todo lo que necesitas saber", "faq_q1": "¿TeslaDroid requiere permisos de Root?", "faq_a1": "¡No! TeslaDroid utiliza Shizuku mediante la depuración inalámbrica estándar de Android para enviar toques a la pantalla (/dev/input). La garantía y las apps bancarias se mantienen seguras.", "faq_q2": "¿Funciona mientras el vehículo está en marcha (modo Drive)?", "faq_a2": "Sí. En la configuración Wi-Fi de tu Tesla, asegúrate de activar «Permanecer conectado en modo Conducción». El navegador permanecerá activo mientras conduces.", "faq_q3": "¿Cómo protege el GPS Shield la navegación?", "faq_a3": "GPS Shield monitoriza la calidad de la señal satelital. Si detecta pérdida de señal o interferencias, cambia de inmediato al posicionamiento por celdas celulares y Wi-Fi.", "faq_q4": "¿Mis datos y la transmisión son privados?", "faq_a4": "100% privados. Toda la transmisión de vídeo, audio y toques viaja exclusivamente por la red Wi-Fi local de tu teléfono protegida por TLS (HTTPS/WSS). Nada sale a la nube.", "footer_license": "Publicado bajo la Licencia de Código Abierto Apache 2.0.", "footer_disclaimer": "Descargo de responsabilidad: TeslaDroid es un proyecto independiente de código abierto y no está afiliado ni respaldado por Tesla, Inc. o Alphabet, Inc."}, "ru": {"nav_features": "Функции", "nav_how": "Как это работает", "nav_donate": "Поддержать", "nav_download": "Скачать APK", "hero_pill": "Версия 1.0.0 — Автономная архитектура", "hero_title_1": "Ваши Android-приложения.", "hero_title_2": "На экране вашей Tesla.", "hero_desc": "Транслируйте Waze, YouTube, Spotify и мессенджеры прямо на центральный экран Tesla с минимальной задержкой и двусторонним сенсорным управлением без root-прав.", "btn_download_apk": "Скачать APK (v1.0.0)", "btn_view_github": "Код на GitHub", "trust_no_root": "Без Root-прав", "trust_shizuku": "Привилегированный мост Shizuku", "trust_open_source": "100% Бесплатный Open Source", "trust_android_ver": "Совместимо с Android 10+", "tab_tesla_view": "15\" Дисплей Tesla (В салоне авто)", "tab_phone_view": "Мобильное приложение TeslaDroid", "features_tag": "Инженерные преимущества", "features_title": "Создано для водителя", "feat_codec_title": "Аппаратный движок MediaCodec", "feat_codec_desc": "Прямое аппаратное кодирование H.264 и HEVC со скоростью до 60 кадров/с. Настраиваемый битрейт от 4 до 20 Мбит/с и адаптивное масштабирование DPI под экран Tesla.", "feat_touch_title": "Двусторонний сенсорный мост", "feat_touch_desc": "Полноценный мультитач, масштабирование жестами и прокрутка из браузера Tesla передаются напрямую в Android через службу Shizuku без root.", "feat_gps_title": "GPS Shield (Защита навигации)", "feat_gps_desc": "Защищает навигационные сервисы (Waze, Google Maps) от спутниковых помех и скачков координат, непрерывно переключаясь на данные сотовых вышек и Wi-Fi.", "feat_audio_title": "Двойная маршрутизация звука", "feat_audio_desc": "Прямой звук через штатный Bluetooth автомобиля без задержек или передача несжатого 16-битного PCM / Opus прямо через браузер с контролем задержки.", "feat_auto_title": "Умная автоматизация вождения", "feat_auto_desc": "Автозапуск потока при подключении к Bluetooth Tesla или выбранной сети Wi-Fi. Автоматическое включение точки доступа и затемнение экрана телефона.", "feat_ai_title": "Мультимодальный AI-ассистент", "feat_ai_desc": "Голосовая активация фразой «Hey Tesla», отзывчивая анимация неонового контура и голосовой помощник Google Gemini прямо на экране Tesla.", "how_tag": "Быстрый старт", "how_title": "Готово за 3 простых шага", "step1_title": "Установите и запустите Shizuku", "step1_desc": "Установите APK TeslaDroid и выдайте разрешения через Shizuku при помощи беспроводной отладки (Wireless Debugging). Компьютер и Root не требуются.", "step2_title": "Подключите Wi-Fi авто", "step2_desc": "Включите точку доступа на телефоне (WPA2). На экране Tesla подключитесь к Wi-Fi телефона и отметьте «Оставаться на связи во время движения».", "step3_title": "Откройте браузер Tesla", "step3_desc": "Откройте браузер в автомобиле, введите отображаемый короткий адрес (или сохраните его в закладки) и пользуйтесь Android на большом экране.", "donate_title": "Поддержите разработку TeslaDroid", "donate_desc": "TeslaDroid — на 100% бесплатный проект с открытым кодом. Ваши пожертвования идут на тестовое оборудование, серверы и поддержку обновлений.", "patreon_btn": "Поддержать на Patreon", "copy_usdt": "Скопировать USDT", "copy_btc": "Скопировать BTC", "copy_eth": "Скопировать ETH", "copy_sol": "Скопировать SOL", "faq_tag": "Часто задаваемые вопросы", "faq_title": "Всё, что вам нужно знать", "faq_q1": "Нужны ли Root-права?", "faq_a1": "Нет! TeslaDroid использует Shizuku через стандартную беспроводную отладку Android для передачи нажатий (/dev/input). Гарантия устройства и банковские приложения в безопасности.", "faq_q2": "Работает ли приложение во время движения (в режиме Drive)?", "faq_a2": "Да. В настройках Wi-Fi автомобиля Tesla обязательно отметьте пункт «Оставаться на связи в режиме Drive». Браузер продолжает работать на ходу.", "faq_q3": "Как работает функция GPS Shield?", "faq_a3": "GPS Shield следит за качеством приема спутниковых сигналов. При сбоях или искажении координат навигация плавно переходит на сотовые вышки и Wi-Fi.", "faq_q4": "Безопасны ли мои данные?", "faq_a4": "Абсолютно на 100%. Все видеокадры, звук и касания передаются исключительно внутри вашей локальной сети Wi-Fi по защищенному протоколу TLS (HTTPS/WSS). В облако ничего не уходит.", "footer_license": "Выпущено под свободной лицензией Apache 2.0.", "footer_disclaimer": "Отказ от ответственности: TeslaDroid является независимым проектом с открытым исходным кодом и не связан с Tesla, Inc. или Alphabet, Inc."}, "zh": {"nav_features": "功能特性", "nav_how": "使用指南", "nav_donate": "支持项目", "nav_download": "下载 APK", "hero_pill": "v1.0.0 正式发布 — 独立系统架构", "hero_title_1": "你的 Android 应用。", "hero_title_2": "尽在特斯拉中控大屏。", "hero_desc": "在特斯拉中控大屏上原生畅享高德/Waze导航、YouTube、Spotify 及各类通讯软件。超低延迟硬件加速，双向多点触控反馈，完全无需 Root 权限。", "btn_download_apk": "下载 APK (v1.0.0)", "btn_view_github": "在 GitHub 查看", "trust_no_root": "无需 Root 权限", "trust_shizuku": "Shizuku 特权系统桥接", "trust_open_source": "100% 免费开源", "trust_android_ver": "完美支持 Android 10+", "tab_tesla_view": "特斯拉 15 寸中控屏幕（车机视角）", "tab_phone_view": "手机端控制中心", "features_tag": "核心技术亮点", "features_title": "专为极致行车体验设计", "feat_codec_title": "MediaCodec 硬件加速", "feat_codec_desc": "直接调用底层 H.264 与 HEVC 硬件编码器，最高达 60 帧流畅输出。支持 4 Mbps 至 20 Mbps 动态码率调节，DPI 适配特斯拉车机大屏。", "feat_touch_title": "双向低延迟多点触控", "feat_touch_desc": "将特斯拉车载浏览器的缩放、滑动、手势输入通过 Shizuku 权限以毫秒级响应注入手机底层系统 (/dev/input)。", "feat_gps_title": "GPS Shield (智能导航防漂移)", "feat_gps_desc": "实时监测卫星定位质量。在遭遇信号弱或卫星干扰时，秒级无缝切换至基站与 Wi-Fi 融合定位，确保地图路线导航不中断。", "feat_audio_title": "双通道无损音频架构", "feat_audio_desc": "支持通过特斯拉原车蓝牙直连播放超低延迟音频，或通过浏览器接收 16-bit PCM 及高效 Opus 音频流，带音画同步补偿调节。", "feat_auto_title": "智能行车自动化", "feat_auto_desc": "连接特斯拉蓝牙或指定 Wi-Fi 时自动开启投屏，自动管理手机热点开关，并在投屏时熄灭手机物理屏幕以省电防发热。", "feat_ai_title": "车载多模态 AI 智能助手", "feat_ai_desc": "内置「Hey Tesla」免唤醒语音识别、炫酷边缘呼吸光效，可在车机上直接调用 Google Gemini 实时多模态智能语音交互。", "how_tag": "快速上手", "how_title": "只需 3 步即可启动", "step1_title": "安装并启动 Shizuku", "step1_desc": "安装 TeslaDroid APK，并在开发者选项中通过「无线调试」授权 Shizuku 运行，全程无需电脑，无需 Root。", "step2_title": "连接车载 Wi-Fi 热点", "step2_desc": "开启手机 Wi-Fi 热点。在特斯拉屏幕的 Wi-Fi 设置中连接该热点，并务必勾选「在前进挡保持连接」。", "step3_title": "打开特斯拉车载浏览器", "step3_desc": "启动特斯拉自带的 Chromium 浏览器，输入手机界面上的短链接（或保存为书签），即可开始全屏投屏交互。", "donate_title": "支持 TeslaDroid 开源开发", "donate_desc": "TeslaDroid 是一款完全免费的社区开源软件。您的支持将直接用于购买测试设备、支付服务器带宽以及持续的功能迭代。", "patreon_btn": "在 Patreon 上赞助", "copy_usdt": "复制 USDT 地址", "copy_btc": "复制 BTC 地址", "copy_eth": "复制 ETH 地址", "copy_sol": "复制 SOL 地址", "faq_tag": "常见问题解答", "faq_title": "你想了解的都在这里", "faq_q1": "TeslaDroid 是否需要 Root 手机？", "faq_a1": "完全不需要！TeslaDroid 通过 Android 原生无线调试机制由 Shizuku 注入触控事件 (/dev/input)，手机的保修、安全系统与银行软件均不受任何影响。", "faq_q2": "车辆在前进挡 (D 挡) 行驶时能否正常使用？", "faq_a2": "完全可以。在特斯拉车机的 Wi-Fi 设置中勾选「在前进挡保持连接」即可。行驶途中车载浏览器保持全屏在线，可正常使用地图导航。", "faq_q3": "GPS Shield 是如何保障行车导航的？", "faq_a3": "当经过隧道、高架桥或遭遇定位干扰导致卫星坐标漂移时，系统会自动将导航数据平滑过渡至蜂窝移动基站与 Wi-Fi 定位，避免导航迷路。", "faq_q4": "我的车辆和屏幕数据是否会被上传？", "faq_a4": "100% 本地运行！所有的视频画面、声音和触摸事件均严格在手机与特斯拉的局域网 Wi-Fi 内通过 TLS (HTTPS/WSS) 加密传输，绝不经过任何外部服务器。", "footer_license": "基于 Apache 2.0 开源许可协议发布。", "footer_disclaimer": "声明：TeslaDroid 是一个独立的开源项目，与 Tesla, Inc. 或 Alphabet, Inc. 无任何关联或官方背书。"}, "de": {"nav_features": "Funktionen", "nav_how": "So funktioniert's", "nav_donate": "Spenden", "nav_download": "APK herunterladen", "hero_pill": "Version 1.0.0 verfügbar — Standalone-Architektur", "hero_title_1": "Deine Android-Apps.", "hero_title_2": "Auf deinem Tesla-Display.", "hero_desc": "Streame Waze, YouTube, Spotify und Messenger direkt auf den Tesla-Touchscreen. Extrem niedrige Latenz, bidirektionale Touch-Bedienung, kein Root erforderlich.", "btn_download_apk": "APK herunterladen (v1.0.0)", "btn_view_github": "Auf GitHub ansehen", "trust_no_root": "Kein Root erforderlich", "trust_shizuku": "Shizuku System-Bridge", "trust_open_source": "100% Kostenlos & Open Source", "trust_android_ver": "Kompatibel mit Android 10+", "tab_tesla_view": "Tesla 15\" Mitteldisplay (Fahrzeugansicht)", "tab_phone_view": "Android Cockpit-App", "features_tag": "Technische Highlights", "features_title": "Entwickelt für höchste Präzision", "feat_codec_title": "Hardware MediaCodec-Engine", "feat_codec_desc": "Direkte H.264 & HEVC Hardware-Codierung mit bis zu 60 FPS. Einstellbare Bitrate (4–20 Mbps) und DPI-Skalierung für den Tesla-Bildschirm.", "feat_touch_title": "Bidirektionale Touch-Bridge", "feat_touch_desc": "Vollständige Multi-Touch-Gesten, Zoom und Scrollen direkt aus dem Tesla-Browser über den Shizuku-Systemdienst ohne Root.", "feat_gps_title": "GPS Shield (Navigationsschutz)", "feat_gps_desc": "Schützt Navigations-Apps (Waze, Google Maps) vor Satellitenstörungen und Positions-Sprüngen durch nahtloses Umschalten auf Mobilfunk- und WLAN-Ortung.", "feat_audio_title": "Duales Audio-Routing", "feat_audio_desc": "Direktes verzögerungsfreies Bluetooth-Audio über die Fahrzeuglautsprecher oder unkomprimiertes 16-Bit PCM / Opus über den Browser.", "feat_auto_title": "Intelligente Fahrautomation", "feat_auto_desc": "Automatischer Stream-Start bei Verbindung mit Tesla-Bluetooth oder WLAN. Schaltet den mobilen Hotspot automatisch und dimmt das Smartphone-Display.", "feat_ai_title": "Multimodaler KI-Assistent", "feat_ai_desc": "Freihändige Sprachaktivierung („Hey Tesla“), reaktiver Neon-Leuchteffekt und integrierter Google Gemini Live-Assistent direkt im Auto.", "how_tag": "Schnellstart", "how_title": "In 3 einfachen Schritten startklar", "step1_title": "Shizuku installieren & koppeln", "step1_desc": "Installiere die TeslaDroid APK und erteile Rechte über Shizuku via Wireless Debugging in den Entwickleroptionen. Kein PC oder Root nötig.", "step2_title": "Fahrzeug-WLAN verbinden", "step2_desc": "Schalte den Handy-Hotspot ein (WPA2). Verbinde deinen Tesla damit und aktiviere „In Fahrstufe D verbunden bleiben“.", "step3_title": "Tesla-Browser öffnen", "step3_desc": "Öffne den Chromium-Browser im Tesla, gib die Kurz-URL ein (oder setze ein Lesezeichen) und genieße vollwertiges Android.", "donate_title": "TeslaDroid-Entwicklung unterstützen", "donate_desc": "TeslaDroid ist 100% kostenlos und Open Source. Deine Spenden fließen direkt in Testgeräte, Serverbandbreite und Weiterentwicklung.", "patreon_btn": "Auf Patreon unterstützen", "copy_usdt": "USDT-Adresse kopieren", "copy_btc": "BTC-Adresse kopieren", "copy_eth": "ETH-Adresse kopieren", "copy_sol": "SOL-Adresse kopieren", "faq_tag": "Häufig gestellte Fragen", "faq_title": "Alles, was du wissen musst", "faq_q1": "Benötigt TeslaDroid Root-Rechte?", "faq_a1": "Nein! TeslaDroid nutzt Shizuku über das standardmäßige Android Wireless Debugging, um Touch-Eingaben (/dev/input) zu übertragen. Garantie und Banking-Apps bleiben vollkommen unberührt.", "faq_q2": "Funktioniert es während der Fahrt (im Drive-Modus)?", "faq_a2": "Ja. Aktiviere in den WLAN-Einstellungen deines Tesla die Option „In Fahrstufe D verbunden bleiben“. Der Browser bleibt während der Fahrt aktiv.", "faq_q3": "Wie schützt GPS Shield die Navigation?", "faq_a3": "GPS Shield überwacht Satellitenempfang und Temposprünge. Bei Signalverlust schaltet das System blitzschnell auf Mobilfunk- und WLAN-Peilung um, damit deine Route stabil bleibt.", "faq_q4": "Sind meine Streaming- und Fahrzeugdaten privat?", "faq_a4": "100% privat. Sämtliche Videobilder, Audiosignale und Berührungen verbleiben streng im lokalen WLAN-Hotspot deines Telefons via TLS (HTTPS/WSS). Keine Clouduploads.", "footer_license": "Veröffentlicht unter der Apache 2.0 Open-Source-Lizenz.", "footer_disclaimer": "Haftungsausschluss: TeslaDroid ist ein unabhängiges Open-Source-Projekt und steht in keiner Verbindung zu Tesla, Inc. oder Alphabet, Inc."}, "ko": {"nav_features": "주요 기능", "nav_how": "사용 방법", "nav_donate": "후원하기", "nav_download": "APK 다운로드", "hero_pill": "v1.0.0 출시 — 독립 시스템 아키텍처", "hero_title_1": "내 안드로이드 앱을,", "hero_title_2": "테슬라 대화면 디스플레이로.", "hero_desc": "루팅 없이 초저지연 하드웨어 가속과 양방향 멀티터치로 티맵, 카카오내비, 유튜브, 스포티파이를 테슬라 센터 스크린에서 바로 사용하세요.", "btn_download_apk": "APK 다운로드 (v1.0.0)", "btn_view_github": "GitHub에서 보기", "trust_no_root": "루팅 불필요", "trust_shizuku": "Shizuku 시스템 브릿지", "trust_open_source": "100% 무료 오픈소스", "trust_android_ver": "Android 10+ 완벽 호환", "tab_tesla_view": "테슬라 15\" 센터 스크린 (차량 뷰)", "tab_phone_view": "안드로이드 폰 컨트롤러 앱", "features_tag": "엔지니어링 핵심", "features_title": "운전자를 위한 완벽한 정밀성", "feat_codec_title": "MediaCodec 하드웨어 가속", "feat_codec_desc": "H.264 및 HEVC 하드웨어 인코더를 직접 호출하여 최대 60 FPS 지원. 4~20 Mbps 비트레이트 및 테슬라 해상도 맞춤 DPI 지원.", "feat_touch_title": "양방향 초저지연 멀티터치", "feat_touch_desc": "테슬라 브라우저의 터치, 핀치투줌, 스크롤 제스처를 Shizuku 권한을 통해 안드로이드 시스템(/dev/input)에 밀리초 단위로 전달합니다.", "feat_gps_title": "GPS Shield (내비게이션 보호)", "feat_gps_desc": "위성 신호 이상 및 GPS 튐 현상을 감지하여 셀룰러 기지국과 Wi-Fi 융합 측위로 즉시 전환해 끊김 없는 길안내를 보장합니다.", "feat_audio_title": "듀얼 오디오 라우팅", "feat_audio_desc": "테슬라 차량 블루투스를 통한 딜레이 없는 다이렉트 사운드 또는 브라우저 내 16비트 무손실 PCM/Opus 스트리밍 지원.", "feat_auto_title": "스마트 드라이브 자동화", "feat_auto_desc": "테슬라 블루투스 연결 시 자동 스트리밍 시작, 핫스팟 자동 켜짐/꺼짐 및 스마트폰 디스플레이 자동 절전 모드 지원.", "feat_ai_title": "멀티모달 AI 음성 비서", "feat_ai_desc": "핸즈프리 호출어(\"Hey Tesla\"), 반응형 네온 엣지 글로우 효과 및 Google Gemini 라이브 음성 대화 통합.", "how_tag": "간편 시작", "how_title": "단 3단계로 연결 완료", "step1_title": "Shizuku 설치 및 페어링", "step1_desc": "TeslaDroid APK를 설치하고 개발자 옵션의 '무선 디버깅'을 통해 Shizuku 권한을 부여합니다. PC나 루팅이 필요 없습니다.", "step2_title": "차량 Wi-Fi 핫스팟 연결", "step2_desc": "스마트폰 핫스팟을 켭니다. 테슬라 화면에서 핫스팟에 연결하고 '주행 중 연결 유지'에 체크합니다.", "step3_title": "테슬라 브라우저 실행", "step3_desc": "테슬라 브라우저를 열고 표시된 짧은 주소를 입력하거나 북마크하여 풀스크린 안드로이드를 즐기세요.", "donate_title": "TeslaDroid 개발 후원", "donate_desc": "TeslaDroid는 100% 무료 커뮤니티 오픈소스 프로젝트입니다. 후원금은 테스트 기기 구매 및 서버 대역폭 유지에 사용됩니다.", "patreon_btn": "Patreon에서 후원하기", "copy_usdt": "USDT 주소 복사", "copy_btc": "BTC 주소 복사", "copy_eth": "ETH 주소 복사", "copy_sol": "SOL 주소 복사", "faq_tag": "자주 묻는 질문", "faq_title": "궁금한 모든 정보", "faq_q1": "스마트폰 루팅(Root)이 필요한가요?", "faq_a1": "전혀 필요 없습니다! TeslaDroid는 표준 안드로이드 무선 디버깅(Shizuku)을 활용하여 터치를 전달합니다. 금융 앱과 기기 보증이 안전하게 유지됩니다.", "faq_q2": "차량 주행 중(D 모드)에도 작동하나요?", "faq_a2": "네! 테슬라 Wi-Fi 설정에서 '주행 중 연결 유지(Remain connected in Drive)'를 활성화하면 주행 중에도 내비게이션이 중단 없이 작동합니다.", "faq_q3": "GPS Shield는 어떻게 작동하나요?", "faq_a3": "터널이나 위성 간섭으로 좌표가 튈 때 기지국 및 Wi-Fi 복합 측위로 즉시 전환하여 길안내 경로 이탈을 방지합니다.", "faq_q4": "내 차량과 화면 데이터는 안전한가요?", "faq_a4": "100% 안전합니다. 모든 영상, 오디오, 터치 이벤트는 차량과 휴대폰 사이의 로컬 Wi-Fi 핫스팟 내에서 TLS(HTTPS/WSS) 암호화로 전송되며 외부 클라우드로 전송되지 않습니다.", "footer_license": "Apache 2.0 오픈소스 라이선스에 따라 배포됩니다.", "footer_disclaimer": "면책 조항: TeslaDroid는 독립적인 오픈소스 프로젝트이며 Tesla, Inc. 또는 Alphabet, Inc.와 제휴 관계가 없습니다."}, "ja": {"nav_features": "機能", "nav_how": "使い方", "nav_donate": "寄付", "nav_download": "APK ダウンロード", "hero_pill": "v1.0.0 リリース — スタンドアロン設計", "hero_title_1": "お気に入りの Android アプリを、", "hero_title_2": "テスラの大画面ディスプレイで。", "hero_desc": "Root不要！Yahoo!カーナビ、YouTube、Spotify、メッセージアプリを、超低遅延ハードウェア加速と双方向マルチタッチでテスラのセンター画面に直接ミラーリング。", "btn_download_apk": "APK ダウンロード (v1.0.0)", "btn_view_github": "GitHub で見る", "trust_no_root": "Root 化不要", "trust_shizuku": "Shizuku 特権ブリッジ", "trust_open_source": "100% 無料・オープンソース", "trust_android_ver": "Android 10+ に完全対応", "tab_tesla_view": "テスラ 15\" センター画面（車載ビュー）", "tab_phone_view": "スマホ側コントロール画面", "features_tag": "技術ハイライト", "features_title": "ドライバーのために設計された精度", "feat_codec_title": "MediaCodec ハードウェア加速", "feat_codec_desc": "H.264 & HEVC ハードウェアエンコーダを直接制御し、最大 60 FPS の滑らかな映像を実現。4〜20 Mbps の可変ビットレートとテスラ専用 DPI スケーリングに対応。", "feat_touch_title": "双方向マルチタッチ", "feat_touch_desc": "テスラ画面上でのタップ、ピンチズーム、スワイプ操作を Shizuku 経由で Android システム (/dev/input) に低遅延でダイレクト反映。", "feat_gps_title": "GPS Shield（ナビゲーション保護）", "feat_gps_desc": "衛星信号の乱れや GPS の位置飛びを自動検知。携帯基地局と Wi-Fi 測位へシームレスに切り替え、安定したルート案内を維持します。", "feat_audio_title": "デュアルオーディオ伝送", "feat_audio_desc": "テスラ純正 Bluetooth オーディオによる遅延ゼロ再生、またはブラウザ経由での 16-bit 非圧縮 PCM / 高効率 Opus ストリーミングに対応。", "feat_auto_title": "スマート自動化", "feat_auto_desc": "テスラの Bluetooth や Wi-Fi 接続時に自動起動。テザリングの自動 ON/OFF、スマホ画面の自動消灯によるバッテリー保護機能を搭載。", "feat_ai_title": "マルチモーダル AI アシスタント", "feat_ai_desc": "「Hey Tesla」のウェイクワード起動、ネオングロー効果、テスラ画面から直接話しかけられる Google Gemini Live 連携。", "how_tag": "簡単セットアップ", "how_title": "わずか 3 ステップで完了", "step1_title": "Shizuku のインストールとペアリング", "step1_desc": "TeslaDroid APK をインストールし、開発者オプションの「ワイヤレスデバッグ」から Shizuku を起動・許可します。PC や Root は不要です。", "step2_title": "テスラの Wi-Fi に接続", "step2_desc": "スマホのテザリングを ON にします。テスラ画面の Wi-Fi 設定で接続し、「ドライブ中も接続を維持」にチェックを入れてください。", "step3_title": "テスラブラウザを開く", "step3_desc": "テスラのブラウザを起動し、表示されたショート URL を入力（またはブックマーク登録）するだけで全画面 Android が起動します。", "donate_title": "TeslaDroid の開発を支援する", "donate_desc": "TeslaDroid は 100% 無料のコミュニティ主導オープンソースプロジェクトです。皆様のご寄付は実機テストやサーバー費用に充てられます。", "patreon_btn": "Patreon で支援する", "copy_usdt": "USDT アドレスをコピー", "copy_btc": "BTC アドレスをコピー", "copy_eth": "ETH アドレスをコピー", "copy_sol": "SOL アドレスをコピー", "faq_tag": "よくあるご質問", "faq_title": "知っておくべきことすべて", "faq_q1": "スマートフォンの Root 化は必要ですか？", "faq_a1": "一切不要です！TeslaDroid は標準の Android ワイヤレスデバッグと Shizuku を利用してタッチ信号 (/dev/input) を送信します。端末の保証や銀行アプリにも影響ありません。", "faq_q2": "走行中（D レンジ）でも使用できますか？", "faq_a2": "はい！テスラの Wi-Fi 設定で「ドライブ中も接続を維持（Remain connected in Drive）」を有効にすれば、走行中もナビや音楽が途切れません。", "faq_q3": "GPS Shield はどのように役立ちますか？", "faq_a3": "トンネルや高層ビル街で衛星信号が乱れた際、基地局や Wi-Fi によるハイブリッド測位へ即座に補正し、ナビの現在地飛びを防ぎます。", "faq_q4": "車両や画面のプライバシーは保護されますか？", "faq_a4": "100% 保護されます。映像、音声、タッチデータはすべてスマホとテスラ間のローカル Wi-Fi 内で TLS (HTTPS/WSS) 暗号化通信され、外部クラウドへは一切送信されません。", "footer_license": "Apache 2.0 オープンソースライセンスに基づき公開されています。", "footer_disclaimer": "免責事項：TeslaDroid は独立したオープンソースプロジェクトであり、Tesla, Inc. または Alphabet, Inc. との提携関係はありません。"}, "pl": {"nav_features": "Funkcje", "nav_how": "Jak to działa", "nav_donate": "Wesprzyj", "nav_download": "Pobierz APK", "hero_pill": "Wersja 1.0.0 wydana — Niezależna architektura", "hero_title_1": "Twoje aplikacje Android.", "hero_title_2": "Na ekranie Twojej Tesli.", "hero_desc": "Przesyłaj Waze, YouTube, Spotify i komunikatory bezpośrednio na centralny ekran Tesli z ultraniskim opóźnieniem i dwukierunkowym dotykiem. Bez roota.", "btn_download_apk": "Pobierz APK (v1.0.0)", "btn_view_github": "Zobacz na GitHubie", "trust_no_root": "Root niewymagany", "trust_shizuku": "Mostek systemowy Shizuku", "trust_open_source": "100% Darmowy & Open Source", "trust_android_ver": "Zgodny z Android 10+", "tab_tesla_view": "Ekran 15\" Tesli (Widok w aucie)", "tab_phone_view": "Aplikacja kontrolna na telefonie", "features_tag": "Najważniejsze cechy", "features_title": "Stworzone dla precyzji kierowcy", "feat_codec_title": "Silnik sprzętowy MediaCodec", "feat_codec_desc": "Bezpośrednie kodowanie H.264 i HEVC do 60 FPS. Regulowany bitrate od 4 do 20 Mbps i skalowanie DPI dopasowane do ekranu Tesli.", "feat_touch_title": "Dwukierunkowy mostek dotykowy", "feat_touch_desc": "Pełna obsługa gestów multi-touch, powiększania i przewijania z przeglądarki Tesli bezpośrednio do Androida przez usługę Shizuku.", "feat_gps_title": "GPS Shield (Ochrona nawigacji)", "feat_gps_desc": "Chroni aplikacje nawigacyjne (Waze, Mapy Google) przed anomaliami sygnału i skokami pozycji, płynnie przełączając na maszty komórkowe i Wi-Fi.", "feat_audio_title": "Podwójny przesył dźwięku", "feat_audio_desc": "Bezpośredni dźwięk przez fabryczny Bluetooth Tesli lub bezstratne audio 16-bit PCM / Opus w przeglądarce z synchronizacją opóźnienia.", "feat_auto_title": "Inteligentna automatyzacja", "feat_auto_desc": "Automatyczny start po połączeniu z Bluetooth lub Wi-Fi Tesli. Samoczynne włączanie hotspotu i przyciemnianie ekranu telefonu dla oszczędzania baterii.", "feat_ai_title": "Multimodalny asystent AI", "feat_ai_desc": "Sterowanie głosowe hasłem „Hey Tesla”, animowane efekty świetlne i asystent Google Gemini na żywo na ekranie Tesli.", "how_tag": "Szybki start", "how_title": "Gotowe w 3 prostych krokach", "step1_title": "Zainstaluj i sparuj Shizuku", "step1_desc": "Zainstaluj APK TeslaDroid i nadaj uprawnienia przez Shizuku za pomocą bezprzewodowego debugowania. Komputer ani Root nie są potrzebne.", "step2_title": "Połącz Wi-Fi w Tesli", "step2_desc": "Włącz hotspot w telefonie (WPA2). W Tesli połącz się z nim i zaznacz opcję „Pozostań w kontakcie podczas jazdy (Drive)”.", "step3_title": "Otwórz przeglądarkę Tesli", "step3_desc": "Uruchom przeglądarkę w aucie, wpisz wyświetlony krótki adres i ciesz się pełnym Androidem na dużym ekranie.", "donate_title": "Wesprzyj rozwój TeslaDroid", "donate_desc": "TeslaDroid to w 100% darmowy projekt open-source. Twoje wsparcie pomaga w zakupie urządzeń testowych i utrzymaniu serwerów.", "patreon_btn": "Wesprzyj na Patreon", "copy_usdt": "Kopiuj adres USDT", "copy_btc": "Kopiuj adres BTC", "copy_eth": "Kopiuj adres ETH", "copy_sol": "Kopiuj adres SOL", "faq_tag": "Często zadawane pytania", "faq_title": "Wszystko, co musisz wiedzieć", "faq_q1": "Czy wymagany jest Root?", "faq_a1": "Nie! TeslaDroid korzysta z usługi Shizuku i standardowego bezprzewodowego debugowania Androida (/dev/input). Gwarancja i aplikacje bankowe są w pełni bezpieczne.", "faq_q2": "Czy działa podczas jazdy (w trybie Drive)?", "faq_a2": "Tak! W ustawieniach Wi-Fi Tesli zaznacz „Pozostań w kontakcie w trybie Drive”. Przeglądarka pozostaje aktywna podczas jazdy.", "faq_q3": "Jak działa funkcja GPS Shield?", "faq_a3": "Monitoruje jakość sygnału GPS. Przy utracie łączności satelitarnej natychmiast przełącza na lokalizację komórkową i Wi-Fi, zapobiegając gubieniu trasy.", "faq_q4": "Czy moje dane są bezpieczne?", "faq_a4": "W 100% bezpieczne. Obraz, dźwięk i dotyk przesyłane są wyłącznie w lokalnej sieci Wi-Fi telefonu z szyfrowaniem TLS (HTTPS/WSS). Nic nie trafia do zewnętrznej chmury.", "footer_license": "Wydano na licencji Open Source Apache 2.0.", "footer_disclaimer": "Zastrzeżenie: TeslaDroid jest niezależnym projektem open-source i nie jest powiązany z firmami Tesla, Inc. ani Alphabet, Inc."}, "pt": {"nav_features": "Recursos", "nav_how": "Como funciona", "nav_donate": "Apoiar", "nav_download": "Baixar APK", "hero_pill": "Versão 1.0.0 lançada — Arquitetura independente", "hero_title_1": "Seus aplicativos Android.", "hero_title_2": "Na tela do seu Tesla.", "hero_desc": "Transmita Waze, YouTube, Spotify e apps de mensagens diretamente para a tela central do seu Tesla com latência ultrabaixa e controle multitoque bidirecional, sem necessidade de root.", "btn_download_apk": "Baixar APK (v1.0.0)", "btn_view_github": "Ver no GitHub", "trust_no_root": "Sem necessidade de Root", "trust_shizuku": "Ponte privilegiada Shizuku", "trust_open_source": "100% Gratuito & Open Source", "trust_android_ver": "Compatível com Android 10+", "tab_tesla_view": "Tela central 15\" Tesla (Visão no veículo)", "tab_phone_view": "App de controle no celular", "features_tag": "Destaques de Engenharia", "features_title": "Desenvolvido para a precisão do motorista", "feat_codec_title": "Motor acelerado MediaCodec", "feat_codec_desc": "Codificação direta por hardware H.264 e HEVC em até 60 FPS. Taxa de bits configurável de 4 a 20 Mbps e escala DPI sob medida para a tela do Tesla.", "feat_touch_title": "Ponte de toque bidirecional", "feat_touch_desc": "Gestos multitoque completos, zoom de pinça e rolagem transmitidos do navegador do Tesla diretamente para o Android via Shizuku.", "feat_gps_title": "GPS Shield (Proteção de navegação)", "feat_gps_desc": "Protege aplicativos de navegação (Waze, Google Maps) contra anomalias e oscilações de sinal com transição suave para posicionamento por rede celular e Wi-Fi.", "feat_audio_title": "Roteamento duplo de áudio", "feat_audio_desc": "Áudio direto por Bluetooth no som do Tesla sem atraso ou transmissão PCM de 16 bits sem perdas / Opus no navegador com controle de sincronização.", "feat_auto_title": "Automações inteligentes", "feat_auto_desc": "Início automático ao conectar ao Bluetooth do Tesla ou Wi-Fi designado. Gerencia automaticamente o ponto de acesso e escurece a tela do celular.", "feat_ai_title": "Assistente IA multimodal", "feat_ai_desc": "Ativação por voz viva-voz («Hey Tesla»), efeitos visuais luminosos e integração ao vivo com o Google Gemini na tela do carro.", "how_tag": "Início Rápido", "how_title": "Pronto em 3 passos simples", "step1_title": "Instalar e parear o Shizuku", "step1_desc": "Instale o APK do TeslaDroid e conceda permissões pelo Shizuku via depuração sem fio nas opções do desenvolvedor. Sem computador e sem root.", "step2_title": "Conectar o Wi-Fi do veículo", "step2_desc": "Ligue o ponto de acesso Wi-Fi do celular (WPA2). Na tela do Tesla, conecte-se à rede e marque «Permanecer conectado em Drive».", "step3_title": "Abrir o navegador do Tesla", "step3_desc": "Abra o navegador Chromium do veículo, digite o endereço curto exibido (ou salve nos favoritos) e aproveite o Android em tela cheia.", "donate_title": "Apoie o desenvolvimento do TeslaDroid", "donate_desc": "O TeslaDroid é um projeto 100% gratuito e de código aberto. Suas contribuições financiam dispositivos de teste e largura de banda dos servidores.", "patreon_btn": "Apoiar no Patreon", "copy_usdt": "Copiar endereço USDT", "copy_btc": "Copiar endereço BTC", "copy_eth": "Copiar endereço ETH", "copy_sol": "Copiar endereço SOL", "faq_tag": "Perguntas Frequentes", "faq_title": "Tudo o que você precisa saber", "faq_q1": "O TeslaDroid requer Root?", "faq_a1": "Não! O TeslaDroid utiliza o Shizuku via depuração sem fio padrão do Android para transmitir os toques (/dev/input). Sua garantia e aplicativos de banco permanecem intactos.", "faq_q2": "Funciona enquanto o veículo está em movimento (modo Drive)?", "faq_a2": "Sim. Nas configurações de Wi-Fi do Tesla, certifique-se de marcar «Permanecer conectado em Drive». O navegador continuará ativo durante a condução.", "faq_q3": "Como o GPS Shield protege a navegação?", "faq_a3": "Monitora a integridade dos sinais de satélite. Em caso de interferência ou perda de sinal, alterna imediatamente para o posicionamento celular e Wi-Fi.", "faq_q4": "Meus dados e transmissão são privados?", "faq_a4": "100% privados. Todo o vídeo, áudio e toques são transmitidos estritamente na rede Wi-Fi local do seu celular criptografada por TLS (HTTPS/WSS). Nada vai para a nuvem.", "footer_license": "Distribuído sob a Licença de Código Aberto Apache 2.0.", "footer_disclaimer": "Aviso: O TeslaDroid é um projeto independente de código aberto e não é afiliado nem endossado pela Tesla, Inc. ou Alphabet, Inc."}, "it": {"nav_features": "Funzionalità", "nav_how": "Come funziona", "nav_donate": "Dona", "nav_download": "Scarica APK", "hero_pill": "Versione 1.0.0 rilasciata — Architettura autonoma", "hero_title_1": "Le tue app Android.", "hero_title_2": "Sullo schermo della tua Tesla.", "hero_desc": "Trasmetti Waze, YouTube, Spotify e app di messaggistica direttamente sul display centrale della tua Tesla con bassissima latenza e controllo multi-touch bidirezionale, senza root.", "btn_download_apk": "Scarica APK (v1.0.0)", "btn_view_github": "Visualizza su GitHub", "trust_no_root": "Nessun Root richiesto", "trust_shizuku": "Bridge con privilegi Shizuku", "trust_open_source": "100% Gratuito & Open Source", "trust_android_ver": "Compatibile con Android 10+", "tab_tesla_view": "Schermo centrale 15\" Tesla (Vista auto)", "tab_phone_view": "App di controllo su smartphone", "features_tag": "Eccellenze ingegneristiche", "features_title": "Creato per la precisione di guida", "feat_codec_title": "Motore hardware MediaCodec", "feat_codec_desc": "Codifica hardware H.264 e HEVC fino a 60 FPS. Bitrate configurabile da 4 a 20 Mbps e ridimensionamento DPI personalizzato per il display Tesla.", "feat_touch_title": "Bridge touch bidirezionale", "feat_touch_desc": "Gesti multi-touch completi, pinch-to-zoom e scorrimento trasmessi dal browser Tesla direttamente ad Android tramite Shizuku senza root.", "feat_gps_title": "GPS Shield (Protezione navigazione)", "feat_gps_desc": "Salvaguarda le app di navigazione (Waze, Google Maps) da anomalie e salti di coordinate, passando istantaneamente alla triangolazione cellulare e Wi-Fi.", "feat_audio_title": "Doppio instradamento audio", "feat_audio_desc": "Audio Bluetooth diretto agli altoparlanti Tesla senza ritardo, o streaming PCM a 16 bit non compresso / Opus nel browser con sincronizzazione.", "feat_auto_title": "Automazioni di guida smart", "feat_auto_desc": "Avvio automatico alla connessione con il Bluetooth o Wi-Fi di Tesla. Gestione automatica dell'hotspot e oscuramento dello schermo dello smartphone.", "feat_ai_title": "Assistente AI multimodale", "feat_ai_desc": "Attivazione vocale vivavoce («Hey Tesla»), effetti luminosi reattivi e assistente Google Gemini dal vivo sullo schermo della vettura.", "how_tag": "Guida rapida", "how_title": "Pronto in 3 semplici passaggi", "step1_title": "Installa e associa Shizuku", "step1_desc": "Installa l'APK di TeslaDroid e concedi i permessi tramite Shizuku via Debug Wireless nelle Opzioni Sviluppatore. Nessun PC o root richiesto.", "step2_title": "Connetti il Wi-Fi dell'auto", "step2_desc": "Attiva l'hotspot Wi-Fi del telefono (WPA2). Sullo schermo Tesla, connettiti e seleziona «Rimani connesso in modalità Drive».", "step3_title": "Apri il browser Tesla", "step3_desc": "Apri il browser Chromium del veicolo, inserisci l'indirizzo breve mostrato e goditi Android a schermo intero.", "donate_title": "Supporta lo sviluppo di TeslaDroid", "donate_desc": "TeslaDroid è un progetto 100% gratuito e open source. Le tue donazioni finanziano dispositivi di test e la larghezza di banda dei server.", "patreon_btn": "Supporta su Patreon", "copy_usdt": "Copia indirizzo USDT", "copy_btc": "Copia indirizzo BTC", "copy_eth": "Copia indirizzo ETH", "copy_sol": "Copia indirizzo SOL", "faq_tag": "Domande frequenti", "faq_title": "Tutto quello che devi sapere", "faq_q1": "TeslaDroid richiede permessi di Root?", "faq_a1": "Assolutamente no! TeslaDroid usa Shizuku tramite il Debug Wireless standard di Android per inviare i tocchi (/dev/input). Garanzia e app bancarie restano al sicuro.", "faq_q2": "Funziona durante la marcia (modalità Drive)?", "faq_a2": "Sì. Nelle impostazioni Wi-Fi della Tesla, spunta «Rimani connesso in modalità Drive». Il browser rimarrà attivo anche mentre sei in viaggio.", "faq_q3": "Come protegge la navigazione il GPS Shield?", "faq_a3": "Monitora l'integrità del segnale GPS. Se si verificano disturbi o perdita di segnale, passa istantaneamente alla triangolazione cellulare e Wi-Fi.", "faq_q4": "I miei dati di streaming e del veicolo sono privati?", "faq_a4": "100% privati. Video, audio e tocchi viaggiano esclusivamente nella rete Wi-Fi locale del telefono protetta da crittografia TLS (HTTPS/WSS). Nessun dato va nel cloud.", "footer_license": "Rilasciato con licenza Open Source Apache 2.0.", "footer_disclaimer": "Disclaimer: TeslaDroid è un progetto open-source indipendente e non è affiliato né approvato da Tesla, Inc. o Alphabet, Inc."}};
+
+    let currentLang = 'en';
+
+    function setLanguage(lang) {
+      if (!translations[lang]) lang = 'en';
+      currentLang = lang;
+      localStorage.setItem('tesladroid_lang', lang);
+      document.documentElement.lang = lang;
+
+      // Update button label
+      const labelMap = { en: 'EN', uk: 'UK', de: 'DE', fr: 'FR', es: 'ES', ru: 'RU', zh: 'ZH', ja: 'JA', ko: 'KO', pl: 'PL', pt: 'PT', it: 'IT' };
+      const btnLabel = document.getElementById('current-lang-code');
+      if (btnLabel) btnLabel.innerText = labelMap[lang] || lang.toUpperCase();
+
+      // Update active option in menu
+      document.querySelectorAll('.lang-opt').forEach(opt => {
+        if (opt.getAttribute('data-lang') === lang) {
+          opt.classList.add('active');
+        } else {
+          opt.classList.remove('active');
+        }
+      });
+
+      // Translate all data-i18n elements
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (translations[lang] && translations[lang][key]) {
+          el.innerHTML = translations[lang][key];
+        }
+      });
+
+      // Close menu
+      const menu = document.getElementById('lang-menu');
+      if (menu) menu.classList.remove('show');
+    }
+
+    function toggleLangMenu(e) {
+      e.stopPropagation();
+      const menu = document.getElementById('lang-menu');
+      if (menu) menu.classList.toggle('show');
+    }
+
+    document.addEventListener('click', () => {
+      const menu = document.getElementById('lang-menu');
+      if (menu) menu.classList.remove('show');
+    });
+
+
+    // Automatic GitHub Latest Release Resolver
+    const DEFAULT_APK_URL = "https://github.com/tesladroid11/tesla-droid-app/releases/download/v1.0.0/TeslaDroid-v1.0.0.apk";
+    async function initAutoUpdateRelease() {
+      try {
+        const res = await fetch("https://api.github.com/repos/tesladroid11/tesla-droid-app/releases/latest");
+        if (!res.ok) return;
+        const data = await res.json();
+        const apk = data.assets && data.assets.find(a => a.name && a.name.toLowerCase().endsWith(".apk"));
+        const downloadUrl = apk ? apk.browser_download_url : DEFAULT_APK_URL;
+        const fileName = apk ? apk.name : "TeslaDroid-latest.apk";
+        document.querySelectorAll(".apk-download-link").forEach(btn => {
+          btn.href = downloadUrl;
+          btn.setAttribute("download", fileName);
+        });
+      } catch (e) {
+        // Fallback is already set to DEFAULT_APK_URL
+      }
+    }
+    initAutoUpdateRelease();
+
+    // Initialize language on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      const savedLang = localStorage.getItem('tesladroid_lang');
+      if (savedLang && translations[savedLang]) {
+        setLanguage(savedLang);
+      } else {
+        const browserLang = (navigator.language || navigator.userLanguage || 'en').toLowerCase().split('-')[0];
+        if (translations[browserLang]) {
+          setLanguage(browserLang);
+        } else {
+          setLanguage('en');
+        }
+      }
+    });
+
+  </script>
+</body>
+</html>
